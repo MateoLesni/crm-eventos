@@ -1,6 +1,6 @@
 """
 Modelos SQLAlchemy para WhatsApp Evolution API
-Completamente separados del CRM de eventos
+Tablas: contactos, conversaciones, mensajes (sin prefijo wa_)
 """
 from app import db
 from datetime import datetime
@@ -9,9 +9,9 @@ from datetime import datetime
 class WAContacto(db.Model):
     """
     Almacena información única de cada cliente/lead de WhatsApp.
-    Tabla: wa_contactos
+    Tabla: contactos
     """
-    __tablename__ = 'wa_contactos'
+    __tablename__ = 'contactos'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     numero_original = db.Column(db.String(20), nullable=False, index=True)
@@ -52,12 +52,12 @@ class WAContacto(db.Model):
 class WAConversacion(db.Model):
     """
     Cada conversación = un hilo completo de chat con un contacto.
-    Tabla: wa_conversaciones
+    Tabla: conversaciones
     """
-    __tablename__ = 'wa_conversaciones'
+    __tablename__ = 'conversaciones'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    contacto_id = db.Column(db.Integer, db.ForeignKey('wa_contactos.id', ondelete='CASCADE'), nullable=False, index=True)
+    contacto_id = db.Column(db.Integer, db.ForeignKey('contactos.id', ondelete='CASCADE'), nullable=False, index=True)
     remote_jid = db.Column(db.String(50), nullable=False, index=True)
     instancia_nombre = db.Column(db.String(50), nullable=False, default='whatsapp_nuevo')
     estado = db.Column(db.String(20), default='abierta', index=True)
@@ -99,12 +99,12 @@ class WAConversacion(db.Model):
 class WAMensaje(db.Model):
     """
     Almacena TODOS los mensajes individuales (enviados y recibidos).
-    Tabla: wa_mensajes
+    Tabla: mensajes
     """
-    __tablename__ = 'wa_mensajes'
+    __tablename__ = 'mensajes'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    conversacion_id = db.Column(db.Integer, db.ForeignKey('wa_conversaciones.id', ondelete='CASCADE'), nullable=False, index=True)
+    conversacion_id = db.Column(db.Integer, db.ForeignKey('conversaciones.id', ondelete='CASCADE'), nullable=False, index=True)
     mensaje_id = db.Column(db.String(100), nullable=False, unique=True, index=True)
     texto = db.Column(db.Text, nullable=True)
     tipo_mensaje = db.Column(db.String(20), default='text')
