@@ -1,6 +1,7 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Evento, Cliente, Actividad, Usuario, Local
+from app.routes.auth import get_current_user_from_token
 from datetime import datetime
 
 eventos_bp = Blueprint('eventos', __name__)
@@ -16,10 +17,7 @@ ESTADO_PRIORIDAD = {
 }
 
 def get_current_user():
-    user_id = session.get('user_id')
-    if user_id:
-        return Usuario.query.get(user_id)
-    return None
+    return get_current_user_from_token()
 
 def calcular_estado_automatico(evento):
     """

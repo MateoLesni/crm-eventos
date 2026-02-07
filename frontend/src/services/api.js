@@ -4,11 +4,32 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://crm-eventos-backend-656
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Interceptor para agregar token a cada request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Interceptor para manejar errores de autenticación
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Eventos
 export const eventosApi = {
@@ -36,9 +57,25 @@ export const usuariosApi = {
 
 // Auth
 export const authApi = {
-  login: (email, password) => api.post('/auth/login', { email, password }),
-  logout: () => api.post('/auth/logout'),
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('usuario', JSON.stringify(response.data.usuario));
+    }
+    return response;
+  },
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    return api.post('/auth/logout');
+  },
   me: () => api.get('/auth/me'),
+  getStoredUser: () => {
+    const usuario = localStorage.getItem('usuario');
+    return usuario ? JSON.parse(usuario) : null;
+  },
+  isAuthenticated: () => !!localStorage.getItem('token'),
 };
 
 export default api;
