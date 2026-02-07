@@ -65,9 +65,15 @@ def listar_eventos():
 
     query = Evento.query
 
-    # Si es comercial, solo ve sus eventos
+    # Si es comercial, ve: CONSULTA_ENTRANTE (todos) + sus eventos asignados
     if user and user.rol == 'comercial':
-        query = query.filter_by(comercial_id=user.id)
+        from sqlalchemy import or_
+        query = query.filter(
+            or_(
+                Evento.estado == 'CONSULTA_ENTRANTE',
+                Evento.comercial_id == user.id
+            )
+        )
     elif comercial_id:
         query = query.filter_by(comercial_id=comercial_id)
 
