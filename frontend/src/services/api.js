@@ -60,6 +60,18 @@ export const usuariosApi = {
   crear: (data) => api.post('/usuarios', data),
 };
 
+// WhatsApp
+const WEBHOOK_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://crm-eventos-backend-656730419070.us-central1.run.app';
+
+export const whatsappApi = {
+  obtenerConversacionPorNumero: (numero) =>
+    axios.get(`${WEBHOOK_URL}/webhook/conversacion-por-numero/${encodeURIComponent(numero)}`),
+  obtenerConversacion: (conversacionId) =>
+    axios.get(`${WEBHOOK_URL}/webhook/conversacion/${conversacionId}`),
+  obtenerMensajes: (conversacionId, limit = 100) =>
+    axios.get(`${WEBHOOK_URL}/webhook/conversacion/${conversacionId}/mensajes`, { params: { limit } }),
+};
+
 // Auth
 export const authApi = {
   login: async (email, password) => {

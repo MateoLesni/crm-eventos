@@ -399,6 +399,84 @@ def buscar_por_numero(numero):
         return jsonify({'error': str(e)}), 500
 
 
+@whatsapp_bp.route('/conversacion-por-numero/<numero>', methods=['GET'])
+def obtener_conversacion_por_numero(numero):
+    """
+    Buscar conversación y mensajes por número de teléfono del cliente.
+    Este endpoint es usado desde el CRM para mostrar el chat de WhatsApp.
+    """
+    try:
+        numero_normalizado = normalizar_numero_argentino(numero)
+
+        if not numero_normalizado:
+            return jsonify({
+                'found': False,
+                'error': 'Número inválido',
+                'numero_original': numero
+            }), 400
+
+        # Buscar contacto
+        contacto = WAContacto.query.filter_by(numero_normalizado=numero_normalizado).first()
+
+        if not contacto:
+            return jsonify({
+                'found': False,
+                'message': 'No se encontró conversación de WhatsApp para este número',
+                'numero_original': numero,
+                'numero_normalizado': numero_normalizado
+            }), 200
+
+        # Buscar conversación más reciente del contacto
+        conversacion = WAConversacion.query.filter_by(
+            contacto_id=contacto.id
+        ).order_by(WAConversacion.ultima_actividad.desc()).first()
+
+        if not conversacion:
+            return jsonify({
+                'found': False,
+                'message': 'Contacto encontrado pero sin conversaciones',
+                'numero_original': numero,
+                'numero_normalizado': numero_normalizado,
+                'contacto_id': contacto.id
+            }), 200
+
+        # Obtener mensajes (últimos 100 por defecto)
+        limit = request.args.get('limit', 100, type=int)
+        mensajes = WAMensaje.query.filter_by(
+            conversacion_id=conversacion.id
+        ).order_by(WAMensaje.timestamp.asc()).limit(limit).all()
+
+        return jsonify({
+            'found': True,
+            'numero_original': numero,
+            'numero_normalizado': numero_normalizado,
+            'contacto': {
+                'id': contacto.id,
+                'nombre': contacto.nombre,
+                'numero': contacto.numero_normalizado
+            },
+            'conversacion': {
+                'id': conversacion.id,
+                'estado': conversacion.estado,
+                'total_mensajes': conversacion.total_mensajes,
+                'ultima_actividad': conversacion.ultima_actividad.isoformat() if conversacion.ultima_actividad else None
+            },
+            'mensajes': [{
+                'id': msg.id,
+                'texto': msg.texto,
+                'tipo': msg.tipo_mensaje,
+                'es_enviado': msg.es_enviado,
+                'fecha': msg.fecha_mensaje.isoformat() if msg.fecha_mensaje else None,
+                'timestamp': msg.timestamp
+            } for msg in mensajes]
+        }), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @whatsapp_bp.route('/stats', methods=['GET'])
 def obtener_estadisticas():
     """Obtener estadísticas generales del sistema de WhatsApp."""

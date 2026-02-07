@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { eventosApi, usuariosApi } from '../services/api';
+import WhatsAppChat from './WhatsAppChat';
 import './Modal.css';
 
 const LOCALES = [
@@ -25,6 +26,7 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
   const [datosEdicion, setDatosEdicion] = useState({});
   const [guardandoCotizacion, setGuardandoCotizacion] = useState(false);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [showWhatsApp, setShowWhatsApp] = useState(false);
 
   useEffect(() => {
     cargarDatos();
@@ -270,8 +272,8 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
 
                     {/* WhatsApp */}
                     <button
-                      className="accion-btn"
-                      onClick={() => alert('Funcion de WhatsApp proximamente')}
+                      className="accion-btn accion-whatsapp"
+                      onClick={() => setShowWhatsApp(true)}
                       title="Ver conversacion WhatsApp"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -538,6 +540,15 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de WhatsApp Chat */}
+      {showWhatsApp && eventoDetalle?.cliente?.telefono && (
+        <WhatsAppChat
+          telefono={eventoDetalle.cliente.telefono}
+          nombreCliente={eventoDetalle.cliente.nombre}
+          onClose={() => setShowWhatsApp(false)}
+        />
       )}
     </>
   );
