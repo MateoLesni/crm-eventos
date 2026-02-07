@@ -1,0 +1,45 @@
+steps:
+  # Build de la imagen Docker
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-frontend:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-frontend:latest'
+      - '--build-arg'
+      - 'VITE_API_URL=${_API_URL}'
+      - './frontend'
+
+  # Push de la imagen
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-frontend:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-frontend:latest'
+
+  # Deploy a Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'crm-eventos-frontend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-frontend:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+
+images:
+  - 'gcr.io/$PROJECT_ID/crm-eventos-frontend:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/crm-eventos-frontend:latest'
+
+substitutions:
+  _API_URL: ''

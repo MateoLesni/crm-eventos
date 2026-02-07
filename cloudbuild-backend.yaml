@@ -1,0 +1,50 @@
+steps:
+  # Build de la imagen Docker
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-backend:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-backend:latest'
+      - './backend'
+
+  # Push de la imagen
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-backend:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-backend:latest'
+
+  # Deploy a Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'crm-eventos-backend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/crm-eventos-backend:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'DB_HOST=${_DB_HOST},DB_USER=${_DB_USER},DB_PASSWORD=${_DB_PASSWORD},DB_NAME=${_DB_NAME},SECRET_KEY=${_SECRET_KEY},CORS_ORIGINS=${_CORS_ORIGINS}'
+
+images:
+  - 'gcr.io/$PROJECT_ID/crm-eventos-backend:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/crm-eventos-backend:latest'
+
+substitutions:
+  _DB_HOST: ''
+  _DB_USER: ''
+  _DB_PASSWORD: ''
+  _DB_NAME: ''
+  _SECRET_KEY: ''
+  _CORS_ORIGINS: ''
