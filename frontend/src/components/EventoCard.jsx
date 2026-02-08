@@ -68,6 +68,11 @@ export default function EventoCard({ evento, isDragging, onClick }) {
         </div>
 
         <div className="card-right">
+          {evento.tiene_precheck && (
+            <span className="precheck-indicator" title="Tiene Pre-Check">
+              P
+            </span>
+          )}
           <span
             className="prioridad-indicator"
             style={{ backgroundColor: prioridadColor }}

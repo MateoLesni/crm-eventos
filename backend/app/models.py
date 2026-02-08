@@ -94,7 +94,10 @@ class Evento(db.Model):
 
     # Estado y seguimiento
     estado = db.Column(db.String(30), default='CONSULTA_ENTRANTE')
-    # Estados: CONSULTA_ENTRANTE, ASIGNADO, CONTACTADO, COTIZADO, CONFIRMADO, RECHAZADO, MULTIRESERVA
+    # Estados: CONSULTA_ENTRANTE, ASIGNADO, CONTACTADO, COTIZADO, CONFIRMADO, RECHAZADO, CONCLUIDO
+
+    # Pre-check
+    facturada = db.Column(db.Boolean, default=False)  # Para cálculo de IVA 21%
 
     # Datos comerciales
     presupuesto = db.Column(db.Numeric(12, 2))
@@ -147,6 +150,7 @@ class Evento(db.Model):
             'cantidad_personas': self.cantidad_personas,
             'tipo': self.tipo,
             'estado': self.estado,
+            'facturada': self.facturada,
             'presupuesto': float(self.presupuesto) if self.presupuesto else None,
             'fecha_presupuesto': self.fecha_presupuesto.isoformat() if self.fecha_presupuesto else None,
             'canal_origen': self.canal_origen,
@@ -155,7 +159,8 @@ class Evento(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'cantidad_actividades': self.actividades.count(),
-            'es_cliente_recurrente': self.cliente.eventos.count() > 1 if self.cliente else False
+            'es_cliente_recurrente': self.cliente.eventos.count() > 1 if self.cliente else False,
+            'tiene_precheck': self.precheck_conceptos.count() > 0 or self.precheck_adicionales.count() > 0 if hasattr(self, 'precheck_conceptos') else False
         }
 
 # Tabla de Actividades (historial flexible)

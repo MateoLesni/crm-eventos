@@ -28,9 +28,14 @@ def create_app():
     from app.routes.whatsapp import whatsapp_bp
     app.register_blueprint(whatsapp_bp, url_prefix='/webhook')
 
+    # Registrar blueprint de Pre-Check
+    from app.routes.precheck import precheck_bp
+    app.register_blueprint(precheck_bp, url_prefix='/api/precheck')
+
     # Importar modelos para que SQLAlchemy los conozca
     from app import models  # Modelos del CRM
     from app import models_whatsapp  # Modelos de WhatsApp
+    from app import models_precheck  # Modelos de Pre-Check
 
     # Crear tablas
     with app.app_context():

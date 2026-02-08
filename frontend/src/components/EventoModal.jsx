@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { eventosApi, usuariosApi } from '../services/api';
 import WhatsAppChat from './WhatsAppChat';
+import PreCheckTab from './PreCheckTab';
 import './Modal.css';
 
 const LOCALES = [
@@ -27,6 +28,8 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
   const [guardandoCotizacion, setGuardandoCotizacion] = useState(false);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [showWhatsApp, setShowWhatsApp] = useState(false);
+  const [activeTab, setActiveTab] = useState('detalle'); // detalle, precheck, whatsapp
+  const [tienePrecheck, setTienePrecheck] = useState(false);
 
   useEffect(() => {
     cargarDatos();
@@ -153,7 +156,34 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
             </span>
           </div>
 
+          {/* Tabs de navegacion */}
+          <div className="modal-tabs">
+            <button
+              className={`modal-tab ${activeTab === 'detalle' ? 'active' : ''}`}
+              onClick={() => setActiveTab('detalle')}
+            >
+              Detalle
+            </button>
+            {(eventoDetalle?.estado === 'CONFIRMADO' || eventoDetalle?.estado === 'CONCLUIDO') && (
+              <button
+                className={`modal-tab ${activeTab === 'precheck' ? 'active' : ''}`}
+                onClick={() => setActiveTab('precheck')}
+              >
+                Pre-Check
+                {tienePrecheck && <span className="tab-badge">P</span>}
+              </button>
+            )}
+            <button
+              className={`modal-tab ${activeTab === 'whatsapp' ? 'active' : ''}`}
+              onClick={() => setActiveTab('whatsapp')}
+            >
+              WhatsApp
+            </button>
+          </div>
+
           <div className="modal-body">
+            {/* Tab Detalle */}
+            {activeTab === 'detalle' && (
             <div className="modal-grid">
               {/* Columna izquierda - Datos */}
               <div className="modal-col">
@@ -365,6 +395,34 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
                 )}
               </div>
             </div>
+            )}
+
+            {/* Tab Pre-Check */}
+            {activeTab === 'precheck' && (
+              <PreCheckTab
+                eventoId={evento.id}
+                estado={eventoDetalle?.estado}
+                onPrecheckChange={(tiene) => setTienePrecheck(tiene)}
+              />
+            )}
+
+            {/* Tab WhatsApp */}
+            {activeTab === 'whatsapp' && eventoDetalle?.cliente?.telefono && (
+              <div className="whatsapp-tab-container">
+                <WhatsAppChat
+                  telefono={eventoDetalle.cliente.telefono}
+                  nombreCliente={eventoDetalle.cliente.nombre}
+                  onClose={() => setActiveTab('detalle')}
+                  embedded={true}
+                />
+              </div>
+            )}
+
+            {activeTab === 'whatsapp' && !eventoDetalle?.cliente?.telefono && (
+              <div className="no-whatsapp">
+                <p>No hay numero de telefono registrado para este cliente</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -540,15 +598,6 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal de WhatsApp Chat */}
-      {showWhatsApp && eventoDetalle?.cliente?.telefono && (
-        <WhatsAppChat
-          telefono={eventoDetalle.cliente.telefono}
-          nombreCliente={eventoDetalle.cliente.nombre}
-          onClose={() => setShowWhatsApp(false)}
-        />
       )}
     </>
   );

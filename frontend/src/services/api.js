@@ -72,6 +72,36 @@ export const whatsappApi = {
     axios.get(`${WEBHOOK_URL}/webhook/conversacion/${conversacionId}/mensajes`, { params: { limit } }),
 };
 
+// Pre-Check
+export const precheckApi = {
+  obtener: (eventoId) => api.get(`/precheck/${eventoId}`),
+  // Conceptos
+  agregarConcepto: (eventoId, data) => api.post(`/precheck/${eventoId}/conceptos`, data),
+  actualizarConcepto: (eventoId, conceptoId, data) => api.put(`/precheck/${eventoId}/conceptos/${conceptoId}`, data),
+  eliminarConcepto: (eventoId, conceptoId) => api.delete(`/precheck/${eventoId}/conceptos/${conceptoId}`),
+  // Adicionales
+  agregarAdicional: (eventoId, data) => api.post(`/precheck/${eventoId}/adicionales`, data),
+  actualizarAdicional: (eventoId, adicionalId, data) => api.put(`/precheck/${eventoId}/adicionales/${adicionalId}`, data),
+  eliminarAdicional: (eventoId, adicionalId) => api.delete(`/precheck/${eventoId}/adicionales/${adicionalId}`),
+  // Pagos
+  agregarPago: (eventoId, data) => api.post(`/precheck/${eventoId}/pagos`, data),
+  actualizarPago: (eventoId, pagoId, data) => api.put(`/precheck/${eventoId}/pagos/${pagoId}`, data),
+  eliminarPago: (eventoId, pagoId) => api.delete(`/precheck/${eventoId}/pagos/${pagoId}`),
+  // Comprobantes
+  subirComprobante: (eventoId, pagoId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/precheck/${eventoId}/pagos/${pagoId}/comprobante`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  eliminarComprobante: (eventoId, pagoId) => api.delete(`/precheck/${eventoId}/pagos/${pagoId}/comprobante`),
+  // Facturada
+  actualizarFacturada: (eventoId, facturada) => api.put(`/precheck/${eventoId}/facturada`, { facturada }),
+  // PDF
+  descargarPdf: (eventoId) => api.get(`/precheck/${eventoId}/pdf`, { responseType: 'blob' }),
+};
+
 // Auth
 export const authApi = {
   login: async (email, password) => {

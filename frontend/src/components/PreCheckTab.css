@@ -1,0 +1,458 @@
+/* PreCheck Tab Styles */
+.precheck-container {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.precheck-loading,
+.precheck-error,
+.precheck-no-disponible {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #666;
+}
+
+.precheck-loading .spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #4a90a4;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.precheck-error {
+  color: #dc3545;
+}
+
+/* Header */
+.precheck-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.facturada-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-exportar-pdf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-exportar-pdf:hover {
+  background: #b91c1c;
+}
+
+.btn-exportar-pdf svg {
+  width: 16px;
+  height: 16px;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 48px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #4a90a4;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-label {
+  font-weight: 500;
+  color: #333;
+}
+
+.solo-lectura-badge {
+  background: #ffc107;
+  color: #333;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Secciones */
+.precheck-section {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.section-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.btn-agregar {
+  background: #4a90a4;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-agregar:hover {
+  background: #3d7a8c;
+}
+
+.empty-message {
+  padding: 20px;
+  text-align: center;
+  color: #999;
+  font-style: italic;
+}
+
+/* Tablas */
+.precheck-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.precheck-table th,
+.precheck-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.precheck-table th {
+  background: #fafafa;
+  font-weight: 600;
+  color: #555;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.precheck-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.precheck-table tfoot td {
+  background: #f8f9fa;
+  font-weight: 500;
+}
+
+.text-right {
+  text-align: right !important;
+}
+
+.text-center {
+  text-align: center !important;
+}
+
+.row-negativo {
+  color: #dc3545;
+}
+
+.row-negativo td {
+  color: #dc3545;
+}
+
+.acciones-cell {
+  white-space: nowrap;
+}
+
+.acciones-cell button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.acciones-cell button:hover {
+  opacity: 1;
+}
+
+.notas-cell {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Comprobantes */
+.comprobante-link {
+  color: #4a90a4;
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.comprobante-link:hover {
+  text-decoration: underline;
+}
+
+.upload-label {
+  cursor: pointer;
+}
+
+.upload-btn {
+  color: #4a90a4;
+  font-size: 12px;
+}
+
+.upload-btn:hover {
+  text-decoration: underline;
+}
+
+.sin-comprobante {
+  color: #999;
+}
+
+/* Formularios inline */
+.form-inline {
+  padding: 16px;
+  background: #f0f7fa;
+  border-top: 1px solid #e0e0e0;
+}
+
+.form-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.form-row input,
+.form-row select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.form-row input:focus,
+.form-row select:focus {
+  outline: none;
+  border-color: #4a90a4;
+}
+
+.form-row select {
+  min-width: 120px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-guardar {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-guardar:hover:not(:disabled) {
+  background: #218838;
+}
+
+.btn-guardar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-cancelar {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-cancelar:hover {
+  background: #5a6268;
+}
+
+/* Totales */
+.precheck-totales {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.totales-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.totales-row.iva {
+  color: #666;
+  border-bottom: 1px dashed #ddd;
+}
+
+.totales-row.total {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  padding-top: 12px;
+  border-top: 2px solid #333;
+  margin-top: 8px;
+}
+
+/* Pagos section */
+.pagos-section {
+  margin-top: 8px;
+}
+
+.pagos-table .comprobante-link,
+.pagos-table .upload-btn {
+  display: inline-block;
+}
+
+/* Pendiente */
+.precheck-pendiente {
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.precheck-pendiente.saldado {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+}
+
+.precheck-pendiente.pendiente {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+}
+
+.pendiente-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.precheck-pendiente.saldado .pendiente-row {
+  color: #155724;
+}
+
+.precheck-pendiente.pendiente .pendiente-row {
+  color: #856404;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+  }
+
+  .form-row input,
+  .form-row select {
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  .precheck-table {
+    font-size: 12px;
+  }
+
+  .precheck-table th,
+  .precheck-table td {
+    padding: 8px;
+  }
+
+  .notas-cell {
+    max-width: 80px;
+  }
+}
