@@ -13,7 +13,7 @@ const LOCALES = [
   { id: 6, nombre: 'Cruza Recoleta' },
 ];
 
-export default function EventoModal({ evento, onClose, onUpdated }) {
+export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tabInicial = 'detalle' }) {
   const [eventoDetalle, setEventoDetalle] = useState(null);
   const [actividades, setActividades] = useState([]);
   const [comerciales, setComerciales] = useState([]);
@@ -28,7 +28,7 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
   const [guardandoCotizacion, setGuardandoCotizacion] = useState(false);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [showWhatsApp, setShowWhatsApp] = useState(false);
-  const [activeTab, setActiveTab] = useState('detalle'); // detalle, precheck, whatsapp
+  const [activeTab, setActiveTab] = useState(tabInicial); // detalle, precheck, whatsapp
   const [tienePrecheck, setTienePrecheck] = useState(false);
 
   useEffect(() => {
@@ -87,25 +87,54 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
     }
   };
 
+  // Formatear número con separador de miles
+  const formatearNumero = (valor) => {
+    if (valor === '' || valor === null || valor === undefined) return '';
+    const numero = parseInt(String(valor).replace(/\./g, ''), 10);
+    if (isNaN(numero)) return '';
+    return numero.toLocaleString('es-AR');
+  };
+
+  // Parsear número formateado a número real
+  const parsearNumero = (valorFormateado) => {
+    if (!valorFormateado) return 0;
+    return parseInt(String(valorFormateado).replace(/\./g, ''), 10) || 0;
+  };
+
   const handleGuardarCotizacion = async () => {
-    if (!montoCotizacion) return;
+    const montoNumerico = parsearNumero(montoCotizacion);
+    if (!montoNumerico) return;
+
+    // Validar que tenga comercial asignado
+    if (!eventoDetalle?.comercial?.id) {
+      alert('Para agregar presupuesto, primero debe asignar un comercial.');
+      return;
+    }
 
     setGuardandoCotizacion(true);
     try {
       await eventosApi.actualizar(evento.id, {
-        presupuesto: parseFloat(montoCotizacion),
+        presupuesto: montoNumerico,
       });
       setShowCotizacion(false);
       cargarDatos();
       onUpdated();
     } catch (error) {
       console.error('Error guardando cotizacion:', error);
+      const errorMsg = error.response?.data?.error || 'Error guardando cotización';
+      alert(errorMsg);
     } finally {
       setGuardandoCotizacion(false);
     }
   };
 
   const handleGuardarEdicion = async () => {
+    // Validar que si hay horario, haya comercial asignado
+    if ((datosEdicion.horario_inicio || datosEdicion.horario_fin) && !datosEdicion.comercial_id) {
+      alert('Para asignar horario, primero debe asignar un comercial.');
+      return;
+    }
+
     setGuardandoEdicion(true);
     try {
       await eventosApi.actualizar(evento.id, datosEdicion);
@@ -114,6 +143,8 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
       onUpdated();
     } catch (error) {
       console.error('Error guardando edicion:', error);
+      const errorMsg = error.response?.data?.error || 'Error guardando cambios';
+      alert(errorMsg);
     } finally {
       setGuardandoEdicion(false);
     }
@@ -272,6 +303,43 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
                   </div>
                 </section>
 
+                {/* Agregar Actividad */}
+                <section className="modal-section">
+                  <h3>Agregar Actividad</h3>
+                  <form onSubmit={handleAgregarActividad} className="nueva-actividad">
+                    <select
+                      value={nuevaActividad.tipo}
+                      onChange={(e) => setNuevaActividad({ ...nuevaActividad, tipo: e.target.value })}
+                    >
+                      <option value="nota">Nota</option>
+                      <option value="llamada">Llamada</option>
+                      <option value="mail">Mail</option>
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="reunion">Reunion</option>
+                      <option value="presupuesto">Presupuesto</option>
+                    </select>
+                    <textarea
+                      placeholder="Agregar actividad..."
+                      value={nuevaActividad.contenido}
+                      onChange={(e) => setNuevaActividad({ ...nuevaActividad, contenido: e.target.value })}
+                      rows={2}
+                    />
+                    <button type="submit" className="btn-agregar">Agregar</button>
+                  </form>
+                </section>
+
+                {eventoDetalle?.mensaje_original && (
+                  <section className="modal-section">
+                    <h3>Mensaje Original</h3>
+                    <div className="mensaje-original">
+                      {eventoDetalle.mensaje_original}
+                    </div>
+                  </section>
+                )}
+              </div>
+
+              {/* Columna derecha - Acciones */}
+              <div className="modal-col">
                 {/* Acciones */}
                 <section className="modal-section">
                   <h3>Acciones</h3>
@@ -330,34 +398,10 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
                     </div>
                   )}
                 </section>
-              </div>
 
-              {/* Columna derecha - Actividades */}
-              <div className="modal-col">
+                {/* Historial de Actividades */}
                 <section className="modal-section">
                   <h3>Historial de Actividades</h3>
-
-                  <form onSubmit={handleAgregarActividad} className="nueva-actividad">
-                    <select
-                      value={nuevaActividad.tipo}
-                      onChange={(e) => setNuevaActividad({ ...nuevaActividad, tipo: e.target.value })}
-                    >
-                      <option value="nota">Nota</option>
-                      <option value="llamada">Llamada</option>
-                      <option value="mail">Mail</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="reunion">Reunion</option>
-                      <option value="presupuesto">Presupuesto</option>
-                    </select>
-                    <textarea
-                      placeholder="Agregar actividad..."
-                      value={nuevaActividad.contenido}
-                      onChange={(e) => setNuevaActividad({ ...nuevaActividad, contenido: e.target.value })}
-                      rows={2}
-                    />
-                    <button type="submit" className="btn-agregar">Agregar</button>
-                  </form>
-
                   <div className="actividades-lista">
                     {actividades.map((act) => (
                       <div key={act.id} className="actividad-item">
@@ -384,15 +428,6 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
                     )}
                   </div>
                 </section>
-
-                {eventoDetalle?.mensaje_original && (
-                  <section className="modal-section">
-                    <h3>Mensaje Original</h3>
-                    <div className="mensaje-original">
-                      {eventoDetalle.mensaje_original}
-                    </div>
-                  </section>
-                )}
               </div>
             </div>
             )}
@@ -402,7 +437,10 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
               <PreCheckTab
                 eventoId={evento.id}
                 estado={eventoDetalle?.estado}
-                onPrecheckChange={(tiene) => setTienePrecheck(tiene)}
+                onPrecheckChange={(tiene) => {
+                  setTienePrecheck(tiene);
+                  if (onRefresh) onRefresh(); // Refrescar la lista de eventos sin cerrar modal
+                }}
               />
             )}
 
@@ -435,10 +473,13 @@ export default function EventoModal({ evento, onClose, onUpdated }) {
             <div className="cotizacion-input">
               <span className="input-prefix">$</span>
               <input
-                type="number"
-                value={montoCotizacion}
-                onChange={(e) => setMontoCotizacion(e.target.value)}
-                placeholder="0"
+                type="text"
+                value={formatearNumero(montoCotizacion)}
+                onChange={(e) => {
+                  const soloNumeros = e.target.value.replace(/[^\d]/g, '');
+                  setMontoCotizacion(soloNumeros);
+                }}
+                placeholder="100.000"
                 autoFocus
               />
             </div>

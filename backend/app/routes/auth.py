@@ -35,7 +35,7 @@ def token_required(f):
         user = get_current_user_from_token()
         if not user:
             return jsonify({'error': 'No autenticado'}), 401
-        return f(*args, **kwargs)
+        return f(user, *args, **kwargs)
     return decorated
 
 @auth_bp.route('/login', methods=['POST'])

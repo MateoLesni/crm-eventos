@@ -73,8 +73,36 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
       style: 'currency',
       currency: 'ARS',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 0
     }).format(valor);
+  };
+
+  // Formatear número con separador de miles (para inputs)
+  const formatearNumero = (valor) => {
+    if (valor === '' || valor === null || valor === undefined) return '';
+    const numero = parseInt(String(valor).replace(/\./g, ''), 10);
+    if (isNaN(numero)) return '';
+    return numero.toLocaleString('es-AR');
+  };
+
+  // Parsear número formateado a número real
+  const parsearNumero = (valorFormateado) => {
+    if (!valorFormateado) return 0;
+    return parseInt(String(valorFormateado).replace(/\./g, ''), 10) || 0;
+  };
+
+  // Manejar cambio en input de monto (con formateo en tiempo real)
+  const handleMontoChange = (valorFormateado, setter, campo) => {
+    // Remover todo excepto números
+    const soloNumeros = valorFormateado.replace(/[^\d]/g, '');
+    const numero = parseInt(soloNumeros, 10) || 0;
+    setter(prev => ({ ...prev, [campo]: numero }));
+  };
+
+  // Obtener valor formateado para mostrar en input
+  const getMontoFormateado = (valor) => {
+    if (valor === 0 || valor === '' || valor === null) return '';
+    return formatearNumero(valor);
   };
 
   // ==================== CONCEPTOS ====================
@@ -404,44 +432,59 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
         {/* Formulario Concepto */}
         {showConceptoForm && (
           <div className="form-inline">
-            <div className="form-row">
-              <select
-                value={conceptoForm.categoria}
-                onChange={(e) => setConceptoForm({ ...conceptoForm, categoria: e.target.value })}
-              >
-                {CATEGORIAS.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
+            <div className="form-row form-row-labels">
+              <div className="form-field">
+                <label>Categoría</label>
+                <select
+                  value={conceptoForm.categoria}
+                  onChange={(e) => setConceptoForm({ ...conceptoForm, categoria: e.target.value })}
+                >
+                  {CATEGORIAS.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
               {conceptoForm.categoria === 'Otros' && (
+                <div className="form-field">
+                  <label>Especificar</label>
+                  <input
+                    type="text"
+                    placeholder="Categoría"
+                    value={conceptoForm.categoria_otro}
+                    onChange={(e) => setConceptoForm({ ...conceptoForm, categoria_otro: e.target.value })}
+                  />
+                </div>
+              )}
+              <div className="form-field" style={{ flex: 2 }}>
+                <label>Descripción</label>
                 <input
                   type="text"
-                  placeholder="Especificar categoría"
-                  value={conceptoForm.categoria_otro}
-                  onChange={(e) => setConceptoForm({ ...conceptoForm, categoria_otro: e.target.value })}
+                  placeholder="Ej: Menú principal"
+                  value={conceptoForm.descripcion}
+                  onChange={(e) => setConceptoForm({ ...conceptoForm, descripcion: e.target.value })}
                 />
-              )}
-              <input
-                type="text"
-                placeholder="Descripción"
-                value={conceptoForm.descripcion}
-                onChange={(e) => setConceptoForm({ ...conceptoForm, descripcion: e.target.value })}
-                style={{ flex: 2 }}
-              />
-              <input
-                type="number"
-                placeholder="Cant."
-                value={conceptoForm.cantidad}
-                onChange={(e) => setConceptoForm({ ...conceptoForm, cantidad: parseFloat(e.target.value) || 0 })}
-                style={{ width: '80px' }}
-              />
-              <input
-                type="number"
-                placeholder="Precio Unit."
-                value={conceptoForm.precio_unitario}
-                onChange={(e) => setConceptoForm({ ...conceptoForm, precio_unitario: parseFloat(e.target.value) || 0 })}
-                style={{ width: '120px' }}
-              />
+              </div>
+              <div className="form-field" style={{ width: '80px' }}>
+                <label>Cantidad</label>
+                <input
+                  type="text"
+                  placeholder="50"
+                  value={conceptoForm.cantidad || ''}
+                  onChange={(e) => {
+                    const valor = e.target.value.replace(/[^\d]/g, '');
+                    setConceptoForm({ ...conceptoForm, cantidad: parseInt(valor, 10) || 0 });
+                  }}
+                />
+              </div>
+              <div className="form-field" style={{ width: '120px' }}>
+                <label>Precio Unit.</label>
+                <input
+                  type="text"
+                  placeholder="10.000"
+                  value={getMontoFormateado(conceptoForm.precio_unitario)}
+                  onChange={(e) => handleMontoChange(e.target.value, setConceptoForm, 'precio_unitario')}
+                />
+              </div>
             </div>
             <div className="form-actions">
               <button className="btn-guardar" onClick={handleGuardarConcepto} disabled={guardando}>
@@ -510,37 +553,47 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
         {/* Formulario Adicional */}
         {showAdicionalForm && (
           <div className="form-inline">
-            <div className="form-row">
-              <select
-                value={adicionalForm.categoria}
-                onChange={(e) => setAdicionalForm({ ...adicionalForm, categoria: e.target.value })}
-              >
-                {CATEGORIAS.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
+            <div className="form-row form-row-labels">
+              <div className="form-field">
+                <label>Categoría</label>
+                <select
+                  value={adicionalForm.categoria}
+                  onChange={(e) => setAdicionalForm({ ...adicionalForm, categoria: e.target.value })}
+                >
+                  {CATEGORIAS.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
               {adicionalForm.categoria === 'Otros' && (
+                <div className="form-field">
+                  <label>Especificar</label>
+                  <input
+                    type="text"
+                    placeholder="Categoría"
+                    value={adicionalForm.categoria_otro}
+                    onChange={(e) => setAdicionalForm({ ...adicionalForm, categoria_otro: e.target.value })}
+                  />
+                </div>
+              )}
+              <div className="form-field" style={{ flex: 2 }}>
+                <label>Descripción</label>
                 <input
                   type="text"
-                  placeholder="Especificar categoría"
-                  value={adicionalForm.categoria_otro}
-                  onChange={(e) => setAdicionalForm({ ...adicionalForm, categoria_otro: e.target.value })}
+                  placeholder="Ej: Decoración extra"
+                  value={adicionalForm.descripcion}
+                  onChange={(e) => setAdicionalForm({ ...adicionalForm, descripcion: e.target.value })}
                 />
-              )}
-              <input
-                type="text"
-                placeholder="Descripción"
-                value={adicionalForm.descripcion}
-                onChange={(e) => setAdicionalForm({ ...adicionalForm, descripcion: e.target.value })}
-                style={{ flex: 2 }}
-              />
-              <input
-                type="number"
-                placeholder="Monto"
-                value={adicionalForm.monto}
-                onChange={(e) => setAdicionalForm({ ...adicionalForm, monto: parseFloat(e.target.value) || 0 })}
-                style={{ width: '120px' }}
-              />
+              </div>
+              <div className="form-field" style={{ width: '120px' }}>
+                <label>Monto</label>
+                <input
+                  type="text"
+                  placeholder="50.000"
+                  value={getMontoFormateado(adicionalForm.monto)}
+                  onChange={(e) => handleMontoChange(e.target.value, setAdicionalForm, 'monto')}
+                />
+              </div>
             </div>
             <div className="form-actions">
               <button className="btn-guardar" onClick={handleGuardarAdicional} disabled={guardando}>
@@ -653,34 +706,44 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
         {/* Formulario Pago */}
         {showPagoForm && (
           <div className="form-inline">
-            <div className="form-row">
-              <input
-                type="date"
-                value={pagoForm.fecha_pago}
-                onChange={(e) => setPagoForm({ ...pagoForm, fecha_pago: e.target.value })}
-              />
-              <select
-                value={pagoForm.metodo_pago}
-                onChange={(e) => setPagoForm({ ...pagoForm, metodo_pago: e.target.value })}
-              >
-                {METODOS_PAGO.map((metodo) => (
-                  <option key={metodo} value={metodo}>{metodo}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                placeholder="Monto"
-                value={pagoForm.monto}
-                onChange={(e) => setPagoForm({ ...pagoForm, monto: parseFloat(e.target.value) || 0 })}
-                style={{ width: '120px' }}
-              />
-              <input
-                type="text"
-                placeholder="Notas (opcional)"
-                value={pagoForm.notas}
-                onChange={(e) => setPagoForm({ ...pagoForm, notas: e.target.value })}
-                style={{ flex: 1 }}
-              />
+            <div className="form-row form-row-labels">
+              <div className="form-field">
+                <label>Fecha</label>
+                <input
+                  type="date"
+                  value={pagoForm.fecha_pago}
+                  onChange={(e) => setPagoForm({ ...pagoForm, fecha_pago: e.target.value })}
+                />
+              </div>
+              <div className="form-field">
+                <label>Método</label>
+                <select
+                  value={pagoForm.metodo_pago}
+                  onChange={(e) => setPagoForm({ ...pagoForm, metodo_pago: e.target.value })}
+                >
+                  {METODOS_PAGO.map((metodo) => (
+                    <option key={metodo} value={metodo}>{metodo}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-field" style={{ width: '120px' }}>
+                <label>Monto</label>
+                <input
+                  type="text"
+                  placeholder="100.000"
+                  value={getMontoFormateado(pagoForm.monto)}
+                  onChange={(e) => handleMontoChange(e.target.value, setPagoForm, 'monto')}
+                />
+              </div>
+              <div className="form-field" style={{ flex: 1 }}>
+                <label>Notas</label>
+                <input
+                  type="text"
+                  placeholder="Opcional"
+                  value={pagoForm.notas}
+                  onChange={(e) => setPagoForm({ ...pagoForm, notas: e.target.value })}
+                />
+              </div>
             </div>
             <div className="form-actions">
               <button className="btn-guardar" onClick={handleGuardarPago} disabled={guardando}>

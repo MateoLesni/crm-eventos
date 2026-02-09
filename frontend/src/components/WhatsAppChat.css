@@ -291,3 +291,44 @@
 .whatsapp-chat-body::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
 }
+
+/* Modo Embedded (dentro de tab) */
+.whatsapp-chat-embedded {
+  background: #e5ddd5;
+  height: 100%;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.whatsapp-chat-embedded .whatsapp-chat-header.embedded {
+  padding: 10px 16px;
+}
+
+.whatsapp-chat-embedded .whatsapp-chat-body {
+  flex: 1;
+  min-height: 300px;
+}
+
+.whatsapp-chat-embedded .whatsapp-chat-footer {
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+/* Container del tab de WhatsApp */
+.whatsapp-tab-container {
+  height: calc(100% - 20px);
+  min-height: 450px;
+}
+
+.no-whatsapp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #666;
+  font-style: italic;
+}

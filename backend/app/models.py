@@ -184,3 +184,28 @@ class Actividad(db.Model):
             'usuario': self.usuario.nombre if self.usuario else 'Sistema',
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+# Tabla de Respuestas de Mail (para asignación de comerciales vía N8N)
+class RespuestaMail(db.Model):
+    __tablename__ = 'respuestas_mails'
+
+    id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(db.String(100), nullable=False, index=True)  # Relaciona con eventos.thread_id
+    mail = db.Column(db.String(120), nullable=False)  # Email del comercial que respondió
+    nombre_comercial = db.Column(db.String(100))  # Nombre del comercial
+    mensaje = db.Column(db.Text)  # Contenido del mensaje de respuesta
+    fecha_respuesta = db.Column(db.Date)
+    hora_respuesta = db.Column(db.Time)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'thread_id': self.thread_id,
+            'mail': self.mail,
+            'nombre_comercial': self.nombre_comercial,
+            'mensaje': self.mensaje,
+            'fecha_respuesta': self.fecha_respuesta.isoformat() if self.fecha_respuesta else None,
+            'hora_respuesta': self.hora_respuesta.isoformat() if self.hora_respuesta else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }

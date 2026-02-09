@@ -595,6 +595,14 @@
   font-size: 24px;
   font-weight: 600;
   text-align: right;
+  -moz-appearance: textfield;
+}
+
+/* Quitar flechas del input */
+.cotizacion-input input::-webkit-outer-spin-button,
+.cotizacion-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .cotizacion-input input:focus {
@@ -690,4 +698,75 @@
 .estado-rechazado {
   background-color: #fecaca;
   color: #dc2626;
+}
+
+.estado-concluido {
+  background-color: #8b5cf6;
+  color: white;
+}
+
+/* Modal Tabs */
+.modal-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 24px;
+  background: #fafafa;
+}
+
+.modal-tab {
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.modal-tab:hover {
+  color: #374151;
+}
+
+.modal-tab.active {
+  color: #3b82f6;
+}
+
+.modal-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #3b82f6;
+}
+
+.modal-tab .tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  width: 18px;
+  height: 18px;
+  background-color: #22c55e;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 50%;
+}
+
+/* WhatsApp button style */
+.accion-whatsapp {
+  border-color: #25d366 !important;
+}
+
+.accion-whatsapp svg {
+  color: #25d366 !important;
+}
+
+.accion-whatsapp:hover {
+  background-color: #dcfce7 !important;
 }

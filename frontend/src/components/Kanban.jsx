@@ -21,6 +21,7 @@ export default function Kanban() {
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [vistaActiva, setVistaActiva] = useState('kanban');
+  const [tabInicial, setTabInicial] = useState('detalle');
 
   useEffect(() => {
     cargarEventos();
@@ -64,13 +65,18 @@ export default function Kanban() {
     }
   };
 
-  const handleEventoClick = (evento) => {
+  const handleEventoClick = (evento, tab = 'detalle') => {
+    setTabInicial(tab);
     setEventoSeleccionado(evento);
   };
 
   const handleEventoUpdated = () => {
     cargarEventos();
     setEventoSeleccionado(null);
+  };
+
+  const handleEventoRefresh = () => {
+    cargarEventos();
   };
 
   const handleNuevoEvento = () => {
@@ -225,6 +231,7 @@ export default function Kanban() {
                               evento={evento}
                               isDragging={snapshot.isDragging}
                               onClick={() => handleEventoClick(evento)}
+                              onPrecheckClick={() => handleEventoClick(evento, 'precheck')}
                             />
                           </div>
                         )}
@@ -251,6 +258,8 @@ export default function Kanban() {
           evento={eventoSeleccionado}
           onClose={() => setEventoSeleccionado(null)}
           onUpdated={handleEventoUpdated}
+          onRefresh={handleEventoRefresh}
+          tabInicial={tabInicial}
         />
       )}
 

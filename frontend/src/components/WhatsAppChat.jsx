@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { whatsappApi } from '../services/api';
 import './WhatsAppChat.css';
 
-export default function WhatsAppChat({ telefono, nombreCliente, onClose }) {
+export default function WhatsAppChat({ telefono, nombreCliente, onClose, embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [conversacion, setConversacion] = useState(null);
@@ -107,6 +107,80 @@ export default function WhatsAppChat({ telefono, nombreCliente, onClose }) {
     });
     return grupos;
   };
+
+  // Si es embedded, renderizar sin overlay
+  if (embedded) {
+    return (
+      <div className="whatsapp-chat-embedded">
+        {/* Header simplificado para embedded */}
+        <div className="whatsapp-chat-header embedded">
+          <div className="header-info">
+            <div className="avatar">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+              </svg>
+            </div>
+            <div className="header-text">
+              <h3>{nombreCliente || 'Cliente'}</h3>
+              <span className="telefono">{telefono}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Chat Body */}
+        <div className="whatsapp-chat-body" ref={chatContainerRef}>
+          {loading && (
+            <div className="chat-loading">
+              <div className="spinner"></div>
+              <p>Cargando conversacion...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="chat-error">
+              <p>{error}</p>
+              <button onClick={cargarConversacion}>Reintentar</button>
+            </div>
+          )}
+
+          {noEncontrado && !loading && (
+            <div className="chat-no-encontrado">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+              </svg>
+              <p>No se encontro conversacion de WhatsApp</p>
+              <span>No hay mensajes registrados para el numero {telefono}</span>
+            </div>
+          )}
+
+          {!loading && !error && !noEncontrado && mensajes.length > 0 && (
+            <div className="mensajes-container">
+              {Object.entries(agruparMensajesPorFecha(mensajes)).map(([fecha, msgs]) => (
+                <div key={fecha} className="mensajes-grupo">
+                  <div className="fecha-separador">
+                    <span>{fecha}</span>
+                  </div>
+                  {msgs.map(renderMensaje)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer info */}
+        {conversacion && (
+          <div className="whatsapp-chat-footer">
+            <span>
+              {conversacion.total_mensajes} mensajes en esta conversacion
+            </span>
+            <span className="solo-lectura">
+              Solo lectura - Los mensajes se sincronizan desde WhatsApp
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="whatsapp-chat-overlay" onClick={onClose}>

@@ -304,6 +304,54 @@
   margin-bottom: 12px;
 }
 
+.form-row-labels {
+  gap: 12px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.form-field input,
+.form-field select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  outline: none;
+  border-color: #4a90a4;
+}
+
+/* Quitar flechas de inputs number/text para cantidades y montos */
+.form-field input[type="text"],
+.form-field input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.form-field input[type="text"]::-webkit-outer-spin-button,
+.form-field input[type="text"]::-webkit-inner-spin-button,
+.form-field input[type="number"]::-webkit-outer-spin-button,
+.form-field input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .form-row input,
 .form-row select {
   padding: 8px 12px;

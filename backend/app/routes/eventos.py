@@ -19,12 +19,18 @@ ESTADO_PRIORIDAD = {
 def get_current_user():
     return get_current_user_from_token()
 
-def calcular_estado_automatico(evento):
+def calcular_estado_automatico(evento, es_nuevo=False):
     """
     Calcula el estado que debería tener el evento basado en sus datos.
     Solo sube de estado, nunca baja (excepto CONFIRMADO/RECHAZADO que son manuales).
+
+    Reglas:
+    - Sin comercial, sin horario, sin presupuesto -> CONSULTA_ENTRANTE
+    - Con comercial asignado -> ASIGNADO
+    - Con horario (y comercial) -> CONTACTADO
+    - Con presupuesto (y comercial) -> COTIZADO
     """
-    estado_actual = evento.estado
+    estado_actual = evento.estado if not es_nuevo else 'CONSULTA_ENTRANTE'
     prioridad_actual = ESTADO_PRIORIDAD.get(estado_actual, 1)
 
     # Si está en estado final (CONFIRMADO/RECHAZADO), no cambiar automáticamente
@@ -34,18 +40,23 @@ def calcular_estado_automatico(evento):
     # Determinar el estado que corresponde según los datos
     nuevo_estado = 'CONSULTA_ENTRANTE'
 
+    # Si tiene comercial asignado -> ASIGNADO
     if evento.comercial_id:
         nuevo_estado = 'ASIGNADO'
 
-    if evento.horario_inicio or evento.horario_fin:
-        if ESTADO_PRIORIDAD['CONTACTADO'] > ESTADO_PRIORIDAD.get(nuevo_estado, 1):
+        # Si tiene horario (y comercial) -> CONTACTADO
+        if evento.horario_inicio or evento.horario_fin:
             nuevo_estado = 'CONTACTADO'
 
-    if evento.presupuesto:
-        if ESTADO_PRIORIDAD['COTIZADO'] > ESTADO_PRIORIDAD.get(nuevo_estado, 1):
+        # Si tiene presupuesto (y comercial) -> COTIZADO
+        if evento.presupuesto:
             nuevo_estado = 'COTIZADO'
 
-    # Solo subir de estado, nunca bajar
+    # Para eventos nuevos, retornar directamente el estado calculado
+    if es_nuevo:
+        return nuevo_estado
+
+    # Para actualizaciones, solo subir de estado, nunca bajar
     if ESTADO_PRIORIDAD.get(nuevo_estado, 1) > prioridad_actual:
         return nuevo_estado
 
@@ -194,23 +205,44 @@ def crear_evento():
     }
     canal_origen = canal_map.get(canal_origen, canal_origen.lower().replace(' ', '_') if canal_origen else 'web')
 
+    # Validaciones de dependencias
+    comercial_id = data.get('comercial_id')
+    horario_inicio = data.get('horario_inicio')
+    horario_fin = data.get('horario_fin')
+    presupuesto = data.get('presupuesto')
+
+    # Si tiene horario o presupuesto, debe tener comercial asignado
+    if (horario_inicio or horario_fin) and not comercial_id:
+        return jsonify({
+            'error': 'Para asignar horario, primero debe asignar un comercial'
+        }), 400
+
+    if presupuesto and not comercial_id:
+        return jsonify({
+            'error': 'Para agregar presupuesto, primero debe asignar un comercial'
+        }), 400
+
     # Crear evento
     evento = Evento(
         cliente_id=cliente.id,
         titulo=data.get('titulo'),
         local_id=local_id,
         fecha_evento=datetime.strptime(data['fecha_evento'], '%Y-%m-%d').date() if data.get('fecha_evento') else None,
-        horario_inicio=datetime.strptime(data['horario_inicio'], '%H:%M').time() if data.get('horario_inicio') else None,
-        horario_fin=datetime.strptime(data['horario_fin'], '%H:%M').time() if data.get('horario_fin') else None,
+        horario_inicio=datetime.strptime(horario_inicio, '%H:%M').time() if horario_inicio else None,
+        horario_fin=datetime.strptime(horario_fin, '%H:%M').time() if horario_fin else None,
         hora_consulta=hora_consulta,
         cantidad_personas=data.get('cantidad_personas'),
         tipo=data.get('tipo'),  # Puede venir null, no asumimos 'social'
-        estado=data.get('estado', 'CONSULTA_ENTRANTE'),
+        estado='CONSULTA_ENTRANTE',  # Estado inicial, se calculará después
         canal_origen=canal_origen,
         mensaje_original=data.get('mensaje_original') or data.get('observacion'),  # N8N puede enviar 'observacion'
         thread_id=thread_id,
-        comercial_id=data.get('comercial_id')
+        comercial_id=comercial_id,
+        presupuesto=presupuesto
     )
+
+    # Calcular estado automático basado en los datos cargados
+    evento.estado = calcular_estado_automatico(evento, es_nuevo=True)
 
     db.session.add(evento)
 
@@ -229,8 +261,18 @@ def crear_evento():
 
     db.session.commit()
 
+    # Mensaje informativo según el estado
+    mensajes_estado = {
+        'CONSULTA_ENTRANTE': 'Su evento se registró en Consulta Entrante.',
+        'ASIGNADO': f'Evento asignado a comercial. Estado: Asignado.',
+        'CONTACTADO': 'Evento con horario asignado. Estado: Contactado.',
+        'COTIZADO': 'Evento con presupuesto. Estado: Cotizado.'
+    }
+
     return jsonify({
         'message': 'Evento creado',
+        'mensaje_estado': mensajes_estado.get(evento.estado, 'Evento creado.'),
+        'estado_calculado': evento.estado,
         'evento': evento.to_dict(),
         'evento_id': evento.id,
         'cliente_id': cliente.id,
@@ -244,6 +286,25 @@ def crear_evento():
 def actualizar_evento(id):
     evento = Evento.query.get_or_404(id)
     data = request.get_json()
+
+    # Validaciones de dependencias ANTES de actualizar
+    # Determinar el comercial_id que tendrá el evento después de la actualización
+    comercial_id_nuevo = data.get('comercial_id', evento.comercial_id)
+
+    # Si se está intentando agregar horario sin comercial
+    if ('horario_inicio' in data or 'horario_fin' in data):
+        tiene_horario = data.get('horario_inicio') or data.get('horario_fin') or evento.horario_inicio or evento.horario_fin
+        if tiene_horario and not comercial_id_nuevo:
+            return jsonify({
+                'error': 'Para asignar horario, primero debe asignar un comercial'
+            }), 400
+
+    # Si se está intentando agregar presupuesto sin comercial
+    if 'presupuesto' in data:
+        if data.get('presupuesto') and not comercial_id_nuevo:
+            return jsonify({
+                'error': 'Para agregar presupuesto, primero debe asignar un comercial'
+            }), 400
 
     # Campos actualizables (sin 'estado' - se calcula automáticamente excepto CONFIRMADO/RECHAZADO)
     campos = ['titulo', 'local_id', 'comercial_id', 'fecha_evento', 'horario_inicio',

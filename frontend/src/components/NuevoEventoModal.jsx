@@ -85,21 +85,31 @@ export default function NuevoEventoModal({ onClose, onCreated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validación frontend: horario o presupuesto requieren comercial
+    if ((formData.horario_inicio || formData.horario_fin) && !formData.comercial_id) {
+      alert('Para asignar horario, primero debe asignar un comercial.');
+      return;
+    }
+
     setGuardando(true);
 
     try {
       const response = await eventosApi.crear(formData);
 
+      // Mostrar mensaje del estado calculado
+      let mensaje = response.data.mensaje_estado || 'Evento creado correctamente.';
+
       if (response.data.sugerencia_comercial) {
-        alert(
-          `Cliente recurrente detectado. Sugerencia: asignar a ${response.data.sugerencia_comercial.nombre}`
-        );
+        mensaje += `\n\nCliente recurrente detectado. Sugerencia: asignar a ${response.data.sugerencia_comercial.nombre}`;
       }
 
+      alert(mensaje);
       onCreated();
     } catch (error) {
       console.error('Error creando evento:', error);
-      alert('Error al crear el evento');
+      const errorMsg = error.response?.data?.error || 'Error al crear el evento';
+      alert(errorMsg);
     } finally {
       setGuardando(false);
     }

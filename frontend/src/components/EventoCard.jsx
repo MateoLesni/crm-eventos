@@ -41,7 +41,7 @@ function generarTituloAuto(evento) {
   return `Evento de ${evento.cliente?.nombre || 'cliente'}`;
 }
 
-export default function EventoCard({ evento, isDragging, onClick }) {
+export default function EventoCard({ evento, isDragging, onClick, onPrecheckClick }) {
   const prioridadColor = PRIORIDAD_INDICADOR[evento.prioridad] || PRIORIDAD_INDICADOR.normal;
 
   // Color del avatar basado en el ID del comercial
@@ -69,7 +69,15 @@ export default function EventoCard({ evento, isDragging, onClick }) {
 
         <div className="card-right">
           {evento.tiene_precheck && (
-            <span className="precheck-indicator" title="Tiene Pre-Check">
+            <span
+              className="precheck-indicator"
+              title="Tiene Pre-Check - Click para abrir"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onPrecheckClick) onPrecheckClick();
+              }}
+              style={{ cursor: 'pointer' }}
+            >
               P
             </span>
           )}
