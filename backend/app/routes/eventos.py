@@ -523,3 +523,155 @@ def asignar_por_respuesta():
         'comercial_id': comercial.id,
         'comercial_nombre': comercial.nombre
     }), 200
+
+
+# POST /api/eventos/migracion - Endpoint para migrar datos del CRM antiguo
+@eventos_bp.route('/migracion', methods=['POST'])
+def migrar_evento():
+    """
+    Endpoint especial para migración de datos desde el CRM antiguo.
+    Permite crear eventos con todos los campos sin validaciones de estado automático.
+
+    Campos requeridos del cliente:
+    - telefono (obligatorio)
+    - nombre_cliente (obligatorio)
+    - email_cliente (opcional)
+
+    Campos del evento (todos opcionales excepto que se indica):
+    - comercial_id (ID del comercial)
+    - titulo
+    - local_id
+    - fecha_evento (YYYY-MM-DD)
+    - horario_inicio (HH:MM)
+    - horario_fin (HH:MM)
+    - hora_consulta (HH:MM)
+    - cantidad_personas
+    - tipo (social/corporativo)
+    - estado (cualquier estado válido)
+    - presupuesto
+    - fecha_presupuesto (YYYY-MM-DD)
+    - canal_origen
+    - mensaje_original
+    - thread_id
+    """
+    data = request.get_json()
+
+    # Validar campos mínimos del cliente
+    telefono = data.get('telefono')
+    nombre_cliente = data.get('nombre_cliente')
+
+    if not telefono:
+        return jsonify({'error': 'telefono es requerido'}), 400
+    if not nombre_cliente:
+        return jsonify({'error': 'nombre_cliente es requerido'}), 400
+
+    # Buscar o crear cliente
+    cliente = Cliente.query.filter_by(telefono=telefono).first()
+    es_cliente_nuevo = False
+
+    if not cliente:
+        cliente = Cliente(
+            telefono=telefono,
+            nombre=nombre_cliente,
+            email=data.get('email_cliente')
+        )
+        db.session.add(cliente)
+        db.session.flush()  # Para obtener el ID
+        es_cliente_nuevo = True
+
+    # Validar comercial si viene
+    comercial_id = data.get('comercial_id')
+    if comercial_id:
+        comercial = Usuario.query.get(comercial_id)
+        if not comercial:
+            return jsonify({'error': f'No existe comercial con ID {comercial_id}'}), 404
+
+    # Parsear fechas y horas
+    fecha_evento = None
+    if data.get('fecha_evento'):
+        try:
+            fecha_evento = datetime.strptime(data['fecha_evento'], '%Y-%m-%d').date()
+        except:
+            pass
+
+    horario_inicio = None
+    if data.get('horario_inicio'):
+        try:
+            horario_inicio = datetime.strptime(data['horario_inicio'], '%H:%M').time()
+        except:
+            pass
+
+    horario_fin = None
+    if data.get('horario_fin'):
+        try:
+            horario_fin = datetime.strptime(data['horario_fin'], '%H:%M').time()
+        except:
+            pass
+
+    hora_consulta = None
+    if data.get('hora_consulta'):
+        try:
+            hora_consulta = datetime.strptime(data['hora_consulta'], '%H:%M').time()
+        except:
+            pass
+
+    fecha_presupuesto = None
+    if data.get('fecha_presupuesto'):
+        try:
+            fecha_presupuesto = datetime.strptime(data['fecha_presupuesto'], '%Y-%m-%d').date()
+        except:
+            pass
+
+    # Validar local si viene
+    local_id = data.get('local_id')
+    if local_id:
+        local = Local.query.get(local_id)
+        if not local:
+            local_id = None  # Ignorar si no existe
+
+    # Estado: usar el que viene o default ASIGNADO (ya que la migración trae asignados)
+    estado = data.get('estado', 'ASIGNADO')
+    estados_validos = ['CONSULTA_ENTRANTE', 'ASIGNADO', 'CONTACTADO', 'COTIZADO', 'CONFIRMADO', 'RECHAZADO', 'CONCLUIDO']
+    if estado not in estados_validos:
+        estado = 'ASIGNADO'
+
+    # Crear evento
+    evento = Evento(
+        cliente_id=cliente.id,
+        comercial_id=comercial_id,
+        titulo=data.get('titulo'),
+        local_id=local_id,
+        fecha_evento=fecha_evento,
+        horario_inicio=horario_inicio,
+        horario_fin=horario_fin,
+        hora_consulta=hora_consulta,
+        cantidad_personas=data.get('cantidad_personas'),
+        tipo=data.get('tipo'),
+        estado=estado,
+        presupuesto=data.get('presupuesto'),
+        fecha_presupuesto=fecha_presupuesto,
+        canal_origen=data.get('canal_origen', 'migracion'),
+        mensaje_original=data.get('mensaje_original'),
+        thread_id=data.get('thread_id')
+    )
+
+    db.session.add(evento)
+
+    # Actividad de migración
+    actividad = Actividad(
+        evento=evento,
+        tipo='sistema',
+        contenido='Evento migrado desde CRM antiguo'
+    )
+    db.session.add(actividad)
+
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Evento migrado correctamente',
+        'evento_id': evento.id,
+        'cliente_id': cliente.id,
+        'es_cliente_nuevo': es_cliente_nuevo,
+        'estado': evento.estado,
+        'evento': evento.to_dict()
+    }), 201
