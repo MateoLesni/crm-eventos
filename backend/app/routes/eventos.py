@@ -571,11 +571,9 @@ def migrar_evento():
     if telefono:
         cliente = Cliente.query.filter_by(telefono=telefono).first()
 
-    # Aceptar tanto 'email_cliente' como 'email' (N8N usa 'email')
-    email_cliente = data.get('email_cliente') or data.get('email')
-
     # Si encontró cliente existente, actualizar email si viene y no tenía
     if cliente:
+        email_cliente = data.get('email_cliente')
         if email_cliente and not cliente.email:
             cliente.email = email_cliente
     else:
@@ -586,7 +584,7 @@ def migrar_evento():
         cliente = Cliente(
             telefono=telefono,
             nombre=nombre_cliente,
-            email=email_cliente
+            email=data.get('email_cliente')
         )
         db.session.add(cliente)
         db.session.flush()
