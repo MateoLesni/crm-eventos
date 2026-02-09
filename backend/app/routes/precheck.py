@@ -24,12 +24,12 @@ GCP_BUCKET_NAME = os.environ.get('GCP_BUCKET_COMPROBANTES', 'crm-eventos-comprob
 def verificar_permiso_edicion(evento, usuario):
     """
     Verifica si el usuario puede editar el pre-check del evento.
-    - Solo editable en CONFIRMADO o CONCLUIDO
+    - Solo editable en APROBADO o CONCLUIDO
     - En CONCLUIDO, solo editable hasta 5 días después de la fecha del evento
     - Los pagos siempre son editables
     """
-    if evento.estado not in ['CONFIRMADO', 'CONCLUIDO']:
-        return False, 'El pre-check solo está disponible para eventos confirmados o concluidos'
+    if evento.estado not in ['APROBADO', 'CONCLUIDO']:
+        return False, 'El pre-check solo está disponible para eventos aprobados o concluidos'
 
     if evento.estado == 'CONCLUIDO' and evento.fecha_evento:
         dias_desde_evento = (date.today() - evento.fecha_evento).days
@@ -52,8 +52,8 @@ def verificar_permiso_pagos(evento, usuario):
     Verifica si el usuario puede agregar/editar pagos.
     Los pagos siempre son editables (sin límite de tiempo).
     """
-    if evento.estado not in ['CONFIRMADO', 'CONCLUIDO']:
-        return False, 'Los pagos solo están disponibles para eventos confirmados o concluidos'
+    if evento.estado not in ['APROBADO', 'CONCLUIDO']:
+        return False, 'Los pagos solo están disponibles para eventos aprobados o concluidos'
 
     # Admin puede editar todo
     if usuario.rol == 'admin':
@@ -536,9 +536,9 @@ def verificar_eventos_concluidos(current_user):
     hoy = date.today()
     eventos_actualizados = []
 
-    # Buscar eventos CONFIRMADO con fecha pasada
+    # Buscar eventos APROBADO con fecha pasada
     eventos = Evento.query.filter(
-        Evento.estado == 'CONFIRMADO',
+        Evento.estado == 'APROBADO',
         Evento.fecha_evento < hoy
     ).all()
 

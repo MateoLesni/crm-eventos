@@ -195,7 +195,7 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
             >
               Detalle
             </button>
-            {(eventoDetalle?.estado === 'CONFIRMADO' || eventoDetalle?.estado === 'CONCLUIDO') && (
+            {(eventoDetalle?.estado === 'APROBADO' || eventoDetalle?.estado === 'CONCLUIDO') && (
               <button
                 className={`modal-tab ${activeTab === 'precheck' ? 'active' : ''}`}
                 onClick={() => setActiveTab('precheck')}
@@ -381,13 +381,13 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                   </div>
 
                   {/* Botones de estado final */}
-                  {eventoDetalle?.estado !== 'CONFIRMADO' && eventoDetalle?.estado !== 'RECHAZADO' && (
+                  {eventoDetalle?.estado !== 'APROBADO' && eventoDetalle?.estado !== 'RECHAZADO' && (
                     <div className="estado-final-btns">
                       <button
                         className="btn-confirmar"
-                        onClick={() => handleCambiarEstadoFinal('CONFIRMADO')}
+                        onClick={() => handleCambiarEstadoFinal('APROBADO')}
                       >
-                        Confirmar evento
+                        Aprobar evento
                       </button>
                       <button
                         className="btn-rechazar"

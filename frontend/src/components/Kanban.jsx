@@ -11,7 +11,7 @@ const ESTADOS = [
   { id: 'ASIGNADO', nombre: 'Asignado', color: '#3b82f6' },
   { id: 'CONTACTADO', nombre: 'Contactado', color: '#8b5cf6' },
   { id: 'COTIZADO', nombre: 'Cotizado', color: '#f59e0b' },
-  { id: 'CONFIRMADO', nombre: 'Confirmado', color: '#10b981' },
+  { id: 'APROBADO', nombre: 'Aprobado', color: '#10b981' },
 ];
 
 export default function Kanban() {

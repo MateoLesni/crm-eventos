@@ -94,7 +94,7 @@ class Evento(db.Model):
 
     # Estado y seguimiento
     estado = db.Column(db.String(30), default='CONSULTA_ENTRANTE')
-    # Estados: CONSULTA_ENTRANTE, ASIGNADO, CONTACTADO, COTIZADO, CONFIRMADO, RECHAZADO, CONCLUIDO
+    # Estados: CONSULTA_ENTRANTE, ASIGNADO, CONTACTADO, COTIZADO, APROBADO, RECHAZADO, CONCLUIDO
 
     # Pre-check
     facturada = db.Column(db.Boolean, default=False)  # Para cálculo de IVA 21%

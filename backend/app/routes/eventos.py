@@ -12,7 +12,7 @@ ESTADO_PRIORIDAD = {
     'ASIGNADO': 2,
     'CONTACTADO': 3,
     'COTIZADO': 4,
-    'CONFIRMADO': 5,
+    'APROBADO': 5,
     'RECHAZADO': 5,
 }
 
@@ -22,7 +22,7 @@ def get_current_user():
 def calcular_estado_automatico(evento, es_nuevo=False):
     """
     Calcula el estado que debería tener el evento basado en sus datos.
-    Solo sube de estado, nunca baja (excepto CONFIRMADO/RECHAZADO que son manuales).
+    Solo sube de estado, nunca baja (excepto APROBADO/RECHAZADO que son manuales).
 
     Reglas:
     - Sin comercial, sin horario, sin presupuesto -> CONSULTA_ENTRANTE
@@ -33,8 +33,8 @@ def calcular_estado_automatico(evento, es_nuevo=False):
     estado_actual = evento.estado if not es_nuevo else 'CONSULTA_ENTRANTE'
     prioridad_actual = ESTADO_PRIORIDAD.get(estado_actual, 1)
 
-    # Si está en estado final (CONFIRMADO/RECHAZADO), no cambiar automáticamente
-    if estado_actual in ['CONFIRMADO', 'RECHAZADO']:
+    # Si está en estado final (APROBADO/RECHAZADO), no cambiar automáticamente
+    if estado_actual in ['APROBADO', 'RECHAZADO']:
         return estado_actual
 
     # Determinar el estado que corresponde según los datos
@@ -99,7 +99,7 @@ def listar_eventos():
         'ASIGNADO': [],
         'CONTACTADO': [],
         'COTIZADO': [],
-        'CONFIRMADO': [],
+        'APROBADO': [],
         'RECHAZADO': []
     }
 
@@ -306,7 +306,7 @@ def actualizar_evento(id):
                 'error': 'Para agregar presupuesto, primero debe asignar un comercial'
             }), 400
 
-    # Campos actualizables (sin 'estado' - se calcula automáticamente excepto CONFIRMADO/RECHAZADO)
+    # Campos actualizables (sin 'estado' - se calcula automáticamente excepto APROBADO/RECHAZADO)
     campos = ['titulo', 'local_id', 'comercial_id', 'fecha_evento', 'horario_inicio',
               'horario_fin', 'cantidad_personas', 'tipo', 'presupuesto',
               'fecha_presupuesto', 'prioridad']
@@ -327,8 +327,8 @@ def actualizar_evento(id):
 
             setattr(evento, campo, valor)
 
-    # Manejar estado manual (solo CONFIRMADO/RECHAZADO pueden ser manuales)
-    if 'estado' in data and data['estado'] in ['CONFIRMADO', 'RECHAZADO']:
+    # Manejar estado manual (solo APROBADO/RECHAZADO pueden ser manuales)
+    if 'estado' in data and data['estado'] in ['APROBADO', 'RECHAZADO']:
         evento.estado = data['estado']
     else:
         # Calcular estado automático basado en los datos
@@ -642,7 +642,7 @@ def migrar_evento():
 
     # Estado: usar el que viene o default ASIGNADO (ya que la migración trae asignados)
     estado = data.get('estado', 'ASIGNADO')
-    estados_validos = ['CONSULTA_ENTRANTE', 'ASIGNADO', 'CONTACTADO', 'COTIZADO', 'CONFIRMADO', 'RECHAZADO', 'CONCLUIDO']
+    estados_validos = ['CONSULTA_ENTRANTE', 'ASIGNADO', 'CONTACTADO', 'COTIZADO', 'APROBADO', 'RECHAZADO', 'CONCLUIDO']
     if estado not in estados_validos:
         estado = 'ASIGNADO'
 
