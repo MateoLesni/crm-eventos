@@ -560,23 +560,30 @@ def migrar_evento():
     telefono = data.get('telefono')
     nombre_cliente = data.get('nombre_cliente')
 
-    if not telefono:
-        return jsonify({'error': 'telefono es requerido'}), 400
     if not nombre_cliente:
         return jsonify({'error': 'nombre_cliente es requerido'}), 400
 
     # Buscar o crear cliente
-    cliente = Cliente.query.filter_by(telefono=telefono).first()
+    cliente = None
     es_cliente_nuevo = False
 
+    # Si viene teléfono, buscar por teléfono
+    if telefono:
+        cliente = Cliente.query.filter_by(telefono=telefono).first()
+
+    # Si no encontró por teléfono, crear nuevo cliente
     if not cliente:
+        # Generar teléfono único si no viene
+        if not telefono:
+            telefono = f"migrado_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
+
         cliente = Cliente(
             telefono=telefono,
             nombre=nombre_cliente,
             email=data.get('email_cliente')
         )
         db.session.add(cliente)
-        db.session.flush()  # Para obtener el ID
+        db.session.flush()
         es_cliente_nuevo = True
 
     # Validar comercial si viene
