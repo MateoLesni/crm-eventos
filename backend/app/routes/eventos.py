@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app import db
-from app.models import Evento, Cliente, Actividad, Usuario, Local
+from app.models import Evento, Cliente, Actividad, Usuario, Local, RespuestaMail
 from app.routes.auth import get_current_user_from_token
 from datetime import datetime
 
@@ -498,6 +498,21 @@ def asignar_por_respuesta():
             contenido=f"Respuesta de Pilar: {mensaje_respuesta[:500]}"  # Limitar a 500 chars
         )
         db.session.add(actividad_respuesta)
+
+    # Guardar registro en respuestas_mails para trazabilidad
+    from datetime import date, time
+    fecha_resp = data.get('fecha_respuesta')
+    hora_resp = data.get('hora_respuesta')
+
+    respuesta_mail = RespuestaMail(
+        thread_id=thread_id,
+        mail=mail_comercial,
+        nombre_comercial=comercial.nombre,
+        mensaje=mensaje_respuesta[:1000] if mensaje_respuesta else None,
+        fecha_respuesta=datetime.strptime(fecha_resp, '%Y-%m-%d').date() if fecha_resp else datetime.utcnow().date(),
+        hora_respuesta=datetime.strptime(hora_resp, '%H:%M:%S').time() if hora_resp else datetime.utcnow().time()
+    )
+    db.session.add(respuesta_mail)
 
     db.session.commit()
 
