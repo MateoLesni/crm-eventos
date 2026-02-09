@@ -571,8 +571,12 @@ def migrar_evento():
     if telefono:
         cliente = Cliente.query.filter_by(telefono=telefono).first()
 
-    # Si no encontró por teléfono, crear nuevo cliente
-    if not cliente:
+    # Si encontró cliente existente, actualizar email si viene y no tenía
+    if cliente:
+        email_cliente = data.get('email_cliente')
+        if email_cliente and not cliente.email:
+            cliente.email = email_cliente
+    else:
         # Generar teléfono único si no viene
         if not telefono:
             telefono = f"migrado_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
