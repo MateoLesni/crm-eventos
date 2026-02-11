@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { eventosApi, usuariosApi } from '../services/api';
+import { eventosApi } from '../services/api';
 import EventoCard from './EventoCard';
 import EventoModal from './EventoModal';
 import NuevoEventoModal from './NuevoEventoModal';
@@ -29,15 +29,15 @@ export default function Kanban() {
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [vistaActiva, setVistaActiva] = useState('kanban');
   const [tabInicial, setTabInicial] = useState('detalle');
-  const [comerciales, setComerciales] = useState([]);
 
   // Filtros generales
   const [filtrosGlobales, setFiltrosGlobales] = useState({
     fechaDesde: '',
     fechaHasta: '',
     local_id: '',
-    comercial_id: '',
     tipo: '',
+    presupuestoMin: '',
+    presupuestoMax: '',
   });
   const [showFiltrosGlobales, setShowFiltrosGlobales] = useState(false);
 
@@ -48,7 +48,6 @@ export default function Kanban() {
 
   useEffect(() => {
     cargarEventos();
-    cargarComerciales();
   }, []);
 
   const cargarEventos = async () => {
@@ -60,15 +59,6 @@ export default function Kanban() {
       console.error('Error cargando eventos:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const cargarComerciales = async () => {
-    try {
-      const response = await usuariosApi.listar('comercial');
-      setComerciales(response.data.usuarios || []);
-    } catch (error) {
-      console.error('Error cargando comerciales:', error);
     }
   };
 
@@ -86,11 +76,16 @@ export default function Kanban() {
     if (filtrosGlobales.local_id) {
       eventos = eventos.filter(e => e.local?.id === parseInt(filtrosGlobales.local_id));
     }
-    if (filtrosGlobales.comercial_id) {
-      eventos = eventos.filter(e => e.comercial?.id === parseInt(filtrosGlobales.comercial_id));
-    }
     if (filtrosGlobales.tipo) {
       eventos = eventos.filter(e => e.tipo === filtrosGlobales.tipo);
+    }
+    if (filtrosGlobales.presupuestoMin) {
+      const min = parseInt(filtrosGlobales.presupuestoMin);
+      eventos = eventos.filter(e => (e.presupuesto || 0) >= min);
+    }
+    if (filtrosGlobales.presupuestoMax) {
+      const max = parseInt(filtrosGlobales.presupuestoMax);
+      eventos = eventos.filter(e => (e.presupuesto || 0) <= max);
     }
 
     // Aplicar filtro de columna (búsqueda de texto)
@@ -132,8 +127,9 @@ export default function Kanban() {
       fechaDesde: '',
       fechaHasta: '',
       local_id: '',
-      comercial_id: '',
       tipo: '',
+      presupuestoMin: '',
+      presupuestoMax: '',
     });
   };
 
@@ -299,18 +295,6 @@ export default function Kanban() {
               </select>
             </div>
             <div className="filtro-group">
-              <label>Comercial</label>
-              <select
-                value={filtrosGlobales.comercial_id}
-                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, comercial_id: e.target.value})}
-              >
-                <option value="">Todos</option>
-                {comerciales.map(c => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
-                ))}
-              </select>
-            </div>
-            <div className="filtro-group">
               <label>Tipo</label>
               <select
                 value={filtrosGlobales.tipo}
@@ -320,6 +304,24 @@ export default function Kanban() {
                 <option value="social">Social</option>
                 <option value="corporativo">Corporativo</option>
               </select>
+            </div>
+            <div className="filtro-group">
+              <label>Presupuesto mín</label>
+              <input
+                type="number"
+                placeholder="$0"
+                value={filtrosGlobales.presupuestoMin}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, presupuestoMin: e.target.value})}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>Presupuesto máx</label>
+              <input
+                type="number"
+                placeholder="Sin límite"
+                value={filtrosGlobales.presupuestoMax}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, presupuestoMax: e.target.value})}
+              />
             </div>
             {hayFiltrosGlobalesActivos && (
               <button className="btn-limpiar-filtros" onClick={limpiarFiltrosGlobales}>
