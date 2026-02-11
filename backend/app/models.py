@@ -156,6 +156,7 @@ class Evento(db.Model):
             'canal_origen': self.canal_origen,
             'prioridad': self.prioridad,
             'mensaje_original': self.mensaje_original,
+            'thread_id': self.thread_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'cantidad_actividades': self.actividades.count(),
@@ -207,5 +208,40 @@ class RespuestaMail(db.Model):
             'mensaje': self.mensaje,
             'fecha_respuesta': self.fecha_respuesta.isoformat() if self.fecha_respuesta else None,
             'hora_respuesta': self.hora_respuesta.isoformat() if self.hora_respuesta else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+# Tabla de Conversaciones de Mail (historial completo de threads de Gmail)
+class ConversacionMail(db.Model):
+    __tablename__ = 'conversacion_mail'
+
+    message_id = db.Column(db.String(100), primary_key=True)  # ID único de Gmail
+    thread_id = db.Column(db.String(100), nullable=False, index=True)  # Relaciona con eventos.thread_id
+    asunto = db.Column(db.String(500))
+    fecha = db.Column(db.Date)
+    hora = db.Column(db.Time)
+    de_email = db.Column(db.String(255))
+    de_nombre = db.Column(db.String(255))
+    para_email = db.Column(db.String(500))
+    tipo_emisor = db.Column(db.String(20), default='cliente')  # 'equipo' o 'cliente'
+    mensaje = db.Column(db.Text)
+    comercial_email = db.Column(db.String(255))  # Email del comercial que respondió (si tipo_emisor='equipo')
+    comercial_nombre = db.Column(db.String(255))  # Nombre del comercial
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'message_id': self.message_id,
+            'thread_id': self.thread_id,
+            'asunto': self.asunto,
+            'fecha': self.fecha.isoformat() if self.fecha else None,
+            'hora': self.hora.isoformat() if self.hora else None,
+            'de_email': self.de_email,
+            'de_nombre': self.de_nombre,
+            'para_email': self.para_email,
+            'tipo_emisor': self.tipo_emisor,
+            'mensaje': self.mensaje,
+            'comercial_email': self.comercial_email,
+            'comercial_nombre': self.comercial_nombre,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

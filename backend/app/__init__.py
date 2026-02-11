@@ -32,6 +32,10 @@ def create_app():
     from app.routes.precheck import precheck_bp
     app.register_blueprint(precheck_bp, url_prefix='/api/precheck')
 
+    # Registrar blueprint de Conversacion Mail (Gmail threads)
+    from app.routes.conversacion_mail import conversacion_mail_bp
+    app.register_blueprint(conversacion_mail_bp, url_prefix='/api/conversacion-mail')
+
     # Importar modelos para que SQLAlchemy los conozca
     from app import models  # Modelos del CRM
     from app import models_whatsapp  # Modelos de WhatsApp

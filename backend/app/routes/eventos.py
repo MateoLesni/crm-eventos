@@ -142,8 +142,9 @@ def crear_evento():
     nombre_cliente = data.get('nombre_cliente') or data.get('nombre')  # N8N puede enviar 'nombre'
     email_cliente = data.get('email_cliente') or data.get('mail')  # N8N puede enviar 'mail'
 
-    if not telefono:
-        return jsonify({'error': 'Teléfono es requerido'}), 400
+    # Validar que venga al menos teléfono o email
+    if not telefono and not email_cliente:
+        return jsonify({'error': 'Se requiere teléfono o email del cliente'}), 400
 
     # Verificar si ya existe un evento con este thread_id (evitar duplicados de N8N)
     thread_id = data.get('thread_id')
@@ -156,20 +157,48 @@ def crear_evento():
                 'duplicado': True
             }), 200
 
-    # Buscar o crear cliente (por teléfono)
-    cliente = Cliente.query.filter_by(telefono=telefono).first()
-    es_cliente_nuevo = cliente is None
+    # Buscar o crear cliente (primero por teléfono, luego por email)
+    cliente = None
+    es_cliente_nuevo = False
+    identificador_usado = None  # Para saber cómo se identificó al cliente
 
-    if es_cliente_nuevo:
-        # Cliente nuevo: crear con los datos del mail
-        cliente = Cliente(
-            telefono=telefono,
-            nombre=nombre_cliente or 'Sin nombre',
-            email=email_cliente
-        )
+    if telefono:
+        # Buscar por teléfono primero
+        cliente = Cliente.query.filter_by(telefono=telefono).first()
+        identificador_usado = 'telefono'
+
+    if not cliente and email_cliente:
+        # Si no hay cliente por teléfono, buscar por email
+        cliente = Cliente.query.filter_by(email=email_cliente).first()
+        identificador_usado = 'email'
+
+    if not cliente:
+        # Cliente nuevo: crear con los datos disponibles
+        es_cliente_nuevo = True
+        if telefono:
+            # Tiene teléfono: crear normalmente
+            cliente = Cliente(
+                telefono=telefono,
+                nombre=nombre_cliente or 'Sin nombre',
+                email=email_cliente
+            )
+        else:
+            # No tiene teléfono: usar email como identificador en campo teléfono
+            # Generar un identificador único basado en email
+            cliente = Cliente(
+                telefono=f"email:{email_cliente}",  # Formato especial para identificar que no tiene tel
+                nombre=nombre_cliente or 'Sin nombre',
+                email=email_cliente
+            )
         db.session.add(cliente)
         db.session.flush()
-    # Si cliente existe, NO sobrescribimos sus datos (ya los tiene)
+    else:
+        # Cliente existe: actualizar email si no tenía y ahora viene
+        if email_cliente and not cliente.email:
+            cliente.email = email_cliente
+        # Si vino teléfono y el cliente no lo tenía (estaba con email:xxx), actualizar
+        if telefono and cliente.telefono.startswith('email:'):
+            cliente.telefono = telefono
 
     # Resolver local_id desde nombre si viene como texto
     local_id = data.get('local_id')

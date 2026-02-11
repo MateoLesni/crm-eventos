@@ -770,3 +770,61 @@
 .accion-whatsapp:hover {
   background-color: #dcfce7 !important;
 }
+
+/* Modal Small */
+.modal-small {
+  max-width: 450px;
+}
+
+/* Section Header con botón de editar */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-header h3 {
+  margin: 0;
+}
+
+/* Botón de editar pequeño */
+.btn-editar-small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.btn-editar-small:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+  color: #374151;
+}
+
+.btn-editar-small svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Gmail tab container */
+.gmail-tab-container {
+  height: 500px;
+}
+
+.no-gmail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: #6b7280;
+  text-align: center;
+}

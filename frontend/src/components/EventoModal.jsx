@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { eventosApi, usuariosApi } from '../services/api';
+import { eventosApi, usuariosApi, clientesApi } from '../services/api';
 import WhatsAppChat from './WhatsAppChat';
+import GmailChat from './GmailChat';
 import PreCheckTab from './PreCheckTab';
 import './Modal.css';
 
@@ -31,6 +32,11 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
   const [activeTab, setActiveTab] = useState(tabInicial); // detalle, precheck, whatsapp
   const [tienePrecheck, setTienePrecheck] = useState(false);
 
+  // Estados para editar cliente
+  const [showEditarCliente, setShowEditarCliente] = useState(false);
+  const [datosCliente, setDatosCliente] = useState({});
+  const [guardandoCliente, setGuardandoCliente] = useState(false);
+
   useEffect(() => {
     cargarDatos();
   }, [evento.id]);
@@ -57,6 +63,15 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
         comercial_id: ev.comercial?.id || '',
       });
       setMontoCotizacion(ev.presupuesto || '');
+      // Inicializar datos del cliente
+      if (ev.cliente) {
+        setDatosCliente({
+          nombre: ev.cliente.nombre || '',
+          telefono: ev.cliente.telefono || '',
+          email: ev.cliente.email || '',
+          empresa: ev.cliente.empresa || '',
+        });
+      }
     } catch (error) {
       console.error('Error cargando detalle:', error);
     } finally {
@@ -160,6 +175,31 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
     }
   };
 
+  const handleGuardarCliente = async () => {
+    if (!datosCliente.nombre?.trim()) {
+      alert('El nombre del cliente es requerido');
+      return;
+    }
+    if (!datosCliente.telefono?.trim() && !datosCliente.email?.trim()) {
+      alert('Se requiere al menos teléfono o email');
+      return;
+    }
+
+    setGuardandoCliente(true);
+    try {
+      await clientesApi.actualizar(eventoDetalle.cliente.id, datosCliente);
+      setShowEditarCliente(false);
+      cargarDatos();
+      onRefresh();
+    } catch (error) {
+      console.error('Error guardando cliente:', error);
+      const errorMsg = error.response?.data?.error || 'Error guardando cliente';
+      alert(errorMsg);
+    } finally {
+      setGuardandoCliente(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="modal-overlay" onClick={onClose}>
@@ -210,6 +250,14 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
             >
               WhatsApp
             </button>
+            {eventoDetalle?.thread_id && (
+              <button
+                className={`modal-tab ${activeTab === 'gmail' ? 'active' : ''}`}
+                onClick={() => setActiveTab('gmail')}
+              >
+                Gmail
+              </button>
+            )}
           </div>
 
           <div className="modal-body">
@@ -219,7 +267,19 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
               {/* Columna izquierda - Datos */}
               <div className="modal-col">
                 <section className="modal-section">
-                  <h3>Cliente</h3>
+                  <div className="section-header">
+                    <h3>Cliente</h3>
+                    <button
+                      className="btn-editar-small"
+                      onClick={() => setShowEditarCliente(true)}
+                      title="Editar cliente"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                  </div>
                   <div className="info-grid">
                     <div className="info-item">
                       <label>Nombre</label>
@@ -227,7 +287,11 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                     </div>
                     <div className="info-item">
                       <label>Telefono</label>
-                      <span>{eventoDetalle?.cliente?.telefono}</span>
+                      <span>
+                        {eventoDetalle?.cliente?.telefono?.startsWith('email:')
+                          ? <em style={{color: '#f59e0b'}}>Sin teléfono</em>
+                          : eventoDetalle?.cliente?.telefono}
+                      </span>
                     </div>
                     <div className="info-item">
                       <label>Email</label>
@@ -461,6 +525,23 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                 <p>No hay numero de telefono registrado para este cliente</p>
               </div>
             )}
+
+            {/* Tab Gmail */}
+            {activeTab === 'gmail' && eventoDetalle?.thread_id && (
+              <div className="gmail-tab-container">
+                <GmailChat
+                  threadId={eventoDetalle.thread_id}
+                  nombreCliente={eventoDetalle.cliente?.nombre || 'Cliente'}
+                  embedded={true}
+                />
+              </div>
+            )}
+
+            {activeTab === 'gmail' && !eventoDetalle?.thread_id && (
+              <div className="no-gmail">
+                <p>Este evento no tiene un thread de Gmail asociado</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -634,6 +715,86 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                   disabled={guardandoEdicion}
                 >
                   {guardandoEdicion ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edicion de Cliente */}
+      {showEditarCliente && (
+        <div className="modal-overlay" onClick={() => setShowEditarCliente(false)}>
+          <div className="modal-content modal-small" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowEditarCliente(false)}>×</button>
+
+            <div className="modal-header">
+              <h2>Editar Cliente</h2>
+            </div>
+
+            <div className="modal-body">
+              <section className="form-section">
+                <div className="form-group">
+                  <label htmlFor="edit-cliente-nombre">Nombre *</label>
+                  <input
+                    type="text"
+                    id="edit-cliente-nombre"
+                    value={datosCliente.nombre}
+                    onChange={(e) => setDatosCliente({...datosCliente, nombre: e.target.value})}
+                    placeholder="Nombre del cliente"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="edit-cliente-telefono">Teléfono</label>
+                  <input
+                    type="text"
+                    id="edit-cliente-telefono"
+                    value={datosCliente.telefono?.startsWith('email:') ? '' : datosCliente.telefono}
+                    onChange={(e) => setDatosCliente({...datosCliente, telefono: e.target.value})}
+                    placeholder="+54 11 1234-5678"
+                  />
+                  {eventoDetalle?.cliente?.telefono?.startsWith('email:') && (
+                    <small style={{color: '#f59e0b', marginTop: '4px', display: 'block'}}>
+                      Este cliente fue creado solo con email. Agregue el teléfono cuando lo obtenga.
+                    </small>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="edit-cliente-email">Email</label>
+                  <input
+                    type="email"
+                    id="edit-cliente-email"
+                    value={datosCliente.email}
+                    onChange={(e) => setDatosCliente({...datosCliente, email: e.target.value})}
+                    placeholder="email@ejemplo.com"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="edit-cliente-empresa">Empresa</label>
+                  <input
+                    type="text"
+                    id="edit-cliente-empresa"
+                    value={datosCliente.empresa}
+                    onChange={(e) => setDatosCliente({...datosCliente, empresa: e.target.value})}
+                    placeholder="Nombre de la empresa (opcional)"
+                  />
+                </div>
+              </section>
+
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary" onClick={() => setShowEditarCliente(false)}>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleGuardarCliente}
+                  disabled={guardandoCliente}
+                >
+                  {guardandoCliente ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>
             </div>

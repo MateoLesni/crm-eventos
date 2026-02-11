@@ -42,6 +42,33 @@ def actualizar_cliente(id):
     cliente = Cliente.query.get_or_404(id)
     data = request.get_json()
 
+    # Validar que venga al menos nombre
+    if 'nombre' in data and not data['nombre']:
+        return jsonify({'error': 'El nombre es requerido'}), 400
+
+    # Validar que tenga al menos teléfono o email
+    telefono_nuevo = data.get('telefono', cliente.telefono)
+    email_nuevo = data.get('email', cliente.email)
+
+    # Si el teléfono actual es del formato "email:xxx", permitir actualizarlo
+    if telefono_nuevo and telefono_nuevo.startswith('email:'):
+        telefono_nuevo = None  # Tratar como si no tuviera teléfono
+
+    if not telefono_nuevo and not email_nuevo:
+        return jsonify({'error': 'Se requiere al menos teléfono o email'}), 400
+
+    # Actualizar teléfono si viene y es válido
+    if 'telefono' in data and data['telefono']:
+        # Verificar que no exista otro cliente con ese teléfono
+        telefono_existente = Cliente.query.filter(
+            Cliente.telefono == data['telefono'],
+            Cliente.id != id
+        ).first()
+        if telefono_existente:
+            return jsonify({'error': 'Ya existe otro cliente con ese teléfono'}), 400
+        cliente.telefono = data['telefono']
+
+    # Actualizar otros campos
     campos = ['nombre', 'email', 'empresa', 'notas']
     for campo in campos:
         if campo in data:

@@ -72,6 +72,11 @@ export const whatsappApi = {
     axios.get(`${WEBHOOK_URL}/webhook/conversacion/${conversacionId}/mensajes`, { params: { limit } }),
 };
 
+// Gmail / Conversacion Mail
+export const gmailApi = {
+  obtenerConversacion: (threadId) => api.get(`/conversacion-mail/${threadId}`),
+};
+
 // Pre-Check
 export const precheckApi = {
   obtener: (eventoId) => api.get(`/precheck/${eventoId}`),
