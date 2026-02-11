@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { eventosApi } from '../services/api';
+import { eventosApi, usuariosApi } from '../services/api';
 import EventoCard from './EventoCard';
 import EventoModal from './EventoModal';
 import NuevoEventoModal from './NuevoEventoModal';
@@ -14,6 +14,13 @@ const ESTADOS = [
   { id: 'APROBADO', nombre: 'Aprobado', color: '#10b981' },
 ];
 
+const LOCALES = [
+  { id: 1, nombre: 'Costa7070' },
+  { id: 2, nombre: 'Kona' },
+  { id: 3, nombre: 'MilVidas' },
+  { id: 4, nombre: 'CoChinChina' },
+];
+
 export default function Kanban() {
   const [kanban, setKanban] = useState({});
   const [totales, setTotales] = useState({});
@@ -22,9 +29,26 @@ export default function Kanban() {
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [vistaActiva, setVistaActiva] = useState('kanban');
   const [tabInicial, setTabInicial] = useState('detalle');
+  const [comerciales, setComerciales] = useState([]);
+
+  // Filtros generales
+  const [filtrosGlobales, setFiltrosGlobales] = useState({
+    fechaDesde: '',
+    fechaHasta: '',
+    local_id: '',
+    comercial_id: '',
+    tipo: '',
+  });
+  const [showFiltrosGlobales, setShowFiltrosGlobales] = useState(false);
+
+  // Filtros y orden por columna
+  const [filtrosColumna, setFiltrosColumna] = useState({});
+  const [ordenColumna, setOrdenColumna] = useState({}); // 'asc' = antiguos primero (default), 'desc' = recientes primero
+  const [filtroActivo, setFiltroActivo] = useState(null); // columna con input abierto
 
   useEffect(() => {
     cargarEventos();
+    cargarComerciales();
   }, []);
 
   const cargarEventos = async () => {
@@ -37,6 +61,80 @@ export default function Kanban() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const cargarComerciales = async () => {
+    try {
+      const response = await usuariosApi.listar('comercial');
+      setComerciales(response.data.usuarios || []);
+    } catch (error) {
+      console.error('Error cargando comerciales:', error);
+    }
+  };
+
+  // Función para filtrar y ordenar eventos de una columna
+  const getEventosFiltrados = (estadoId) => {
+    let eventos = kanban[estadoId] || [];
+
+    // Aplicar filtros globales
+    if (filtrosGlobales.fechaDesde) {
+      eventos = eventos.filter(e => e.fecha_evento >= filtrosGlobales.fechaDesde);
+    }
+    if (filtrosGlobales.fechaHasta) {
+      eventos = eventos.filter(e => e.fecha_evento <= filtrosGlobales.fechaHasta);
+    }
+    if (filtrosGlobales.local_id) {
+      eventos = eventos.filter(e => e.local?.id === parseInt(filtrosGlobales.local_id));
+    }
+    if (filtrosGlobales.comercial_id) {
+      eventos = eventos.filter(e => e.comercial?.id === parseInt(filtrosGlobales.comercial_id));
+    }
+    if (filtrosGlobales.tipo) {
+      eventos = eventos.filter(e => e.tipo === filtrosGlobales.tipo);
+    }
+
+    // Aplicar filtro de columna (búsqueda de texto)
+    const filtroTexto = filtrosColumna[estadoId]?.toLowerCase() || '';
+    if (filtroTexto) {
+      eventos = eventos.filter(e => {
+        const clienteNombre = e.cliente?.nombre?.toLowerCase() || '';
+        const clienteTelefono = e.cliente?.telefono?.toLowerCase() || '';
+        const clienteEmail = e.cliente?.email?.toLowerCase() || '';
+        const localNombre = e.local?.nombre?.toLowerCase() || '';
+        const fechaEvento = e.fecha_evento || '';
+        const titulo = e.titulo_display?.toLowerCase() || '';
+
+        return clienteNombre.includes(filtroTexto) ||
+               clienteTelefono.includes(filtroTexto) ||
+               clienteEmail.includes(filtroTexto) ||
+               localNombre.includes(filtroTexto) ||
+               fechaEvento.includes(filtroTexto) ||
+               titulo.includes(filtroTexto);
+      });
+    }
+
+    // Ordenar: por defecto antiguos primero (asc), toggle para recientes primero (desc)
+    const orden = ordenColumna[estadoId] || 'asc';
+    eventos = [...eventos].sort((a, b) => {
+      const fechaA = new Date(a.created_at);
+      const fechaB = new Date(b.created_at);
+      return orden === 'asc' ? fechaA - fechaB : fechaB - fechaA;
+    });
+
+    return eventos;
+  };
+
+  // Verificar si hay filtros globales activos
+  const hayFiltrosGlobalesActivos = Object.values(filtrosGlobales).some(v => v !== '');
+
+  const limpiarFiltrosGlobales = () => {
+    setFiltrosGlobales({
+      fechaDesde: '',
+      fechaHasta: '',
+      local_id: '',
+      comercial_id: '',
+      tipo: '',
+    });
   };
 
   const handleDragEnd = async (result) => {
@@ -154,57 +252,151 @@ export default function Kanban() {
           </div>
 
           <div className="toolbar-actions">
-            <button className="toolbar-btn">
+            <button
+              className={`toolbar-btn ${hayFiltrosGlobalesActivos ? 'active-filter' : ''}`}
+              onClick={() => setShowFiltrosGlobales(!showFiltrosGlobales)}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
               </svg>
-              Pipeline
-              <svg className="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
-
-            <button className="toolbar-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </button>
-
-            <button className="toolbar-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="4" y1="21" x2="4" y2="14"/>
-                <line x1="4" y1="10" x2="4" y2="3"/>
-                <line x1="12" y1="21" x2="12" y2="12"/>
-                <line x1="12" y1="8" x2="12" y2="3"/>
-                <line x1="20" y1="21" x2="20" y2="16"/>
-                <line x1="20" y1="12" x2="20" y2="3"/>
-                <line x1="1" y1="14" x2="7" y2="14"/>
-                <line x1="9" y1="8" x2="15" y2="8"/>
-                <line x1="17" y1="16" x2="23" y2="16"/>
-              </svg>
-              Todos
-              <svg className="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
+              Filtros
+              {hayFiltrosGlobalesActivos && <span className="filter-badge"></span>}
             </button>
           </div>
         </div>
       </div>
 
+      {/* Barra de filtros globales */}
+      {showFiltrosGlobales && (
+        <div className="filtros-globales-bar">
+          <div className="filtros-row">
+            <div className="filtro-group">
+              <label>Fecha desde</label>
+              <input
+                type="date"
+                value={filtrosGlobales.fechaDesde}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, fechaDesde: e.target.value})}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>Fecha hasta</label>
+              <input
+                type="date"
+                value={filtrosGlobales.fechaHasta}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, fechaHasta: e.target.value})}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>Local</label>
+              <select
+                value={filtrosGlobales.local_id}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, local_id: e.target.value})}
+              >
+                <option value="">Todos</option>
+                {LOCALES.map(local => (
+                  <option key={local.id} value={local.id}>{local.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="filtro-group">
+              <label>Comercial</label>
+              <select
+                value={filtrosGlobales.comercial_id}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, comercial_id: e.target.value})}
+              >
+                <option value="">Todos</option>
+                {comerciales.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="filtro-group">
+              <label>Tipo</label>
+              <select
+                value={filtrosGlobales.tipo}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, tipo: e.target.value})}
+              >
+                <option value="">Todos</option>
+                <option value="social">Social</option>
+                <option value="corporativo">Corporativo</option>
+              </select>
+            </div>
+            {hayFiltrosGlobalesActivos && (
+              <button className="btn-limpiar-filtros" onClick={limpiarFiltrosGlobales}>
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Kanban Board */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="kanban-board">
-          {ESTADOS.map((estado) => (
+          {ESTADOS.map((estado) => {
+            const eventosFiltrados = getEventosFiltrados(estado.id);
+            const tieneFiltroBusqueda = !!filtrosColumna[estado.id];
+            const ordenActual = ordenColumna[estado.id] || 'asc';
+
+            return (
             <div key={estado.id} className="kanban-column">
               <div className="column-header" style={{ borderTopColor: estado.color }}>
-                <h3>{estado.nombre}</h3>
+                <div className="column-header-top">
+                  <h3>{estado.nombre}</h3>
+                  <div className="column-actions">
+                    {/* Icono de filtro */}
+                    <button
+                      className={`column-action-btn ${tieneFiltroBusqueda ? 'filter-active' : ''}`}
+                      onClick={() => setFiltroActivo(filtroActivo === estado.id ? null : estado.id)}
+                      title="Filtrar"
+                    >
+                      <svg viewBox="0 0 24 24" fill={tieneFiltroBusqueda ? '#16a34a' : 'none'} stroke={tieneFiltroBusqueda ? '#16a34a' : 'currentColor'} strokeWidth="2">
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                      </svg>
+                    </button>
+                    {/* Icono de orden */}
+                    <button
+                      className={`column-action-btn ${ordenActual === 'desc' ? 'sort-desc' : ''}`}
+                      onClick={() => setOrdenColumna({...ordenColumna, [estado.id]: ordenActual === 'asc' ? 'desc' : 'asc'})}
+                      title={ordenActual === 'asc' ? 'Mostrando antiguos primero' : 'Mostrando recientes primero'}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18M6 12h12M9 18h6"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Input de búsqueda (visible cuando se clickea el filtro) */}
+                {filtroActivo === estado.id && (
+                  <div className="column-filter-input">
+                    <input
+                      type="text"
+                      placeholder="Buscar cliente, tel, fecha..."
+                      value={filtrosColumna[estado.id] || ''}
+                      onChange={(e) => setFiltrosColumna({...filtrosColumna, [estado.id]: e.target.value})}
+                      autoFocus
+                    />
+                    {filtrosColumna[estado.id] && (
+                      <button
+                        className="clear-filter-btn"
+                        onClick={() => {
+                          setFiltrosColumna({...filtrosColumna, [estado.id]: ''});
+                          setFiltroActivo(null);
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div className="column-stats">
                   <span className="stat-monto">
                     ${(totales[estado.id]?.monto || 0).toLocaleString()}
                   </span>
                   <span className="stat-separator">·</span>
-                  <span className="stat-count">{totales[estado.id]?.cantidad || 0} eventos</span>
+                  <span className="stat-count">{eventosFiltrados.length} eventos</span>
                 </div>
               </div>
 
@@ -215,7 +407,7 @@ export default function Kanban() {
                     {...provided.droppableProps}
                     className={`column-content ${snapshot.isDraggingOver ? 'dragging-over' : ''}`}
                   >
-                    {(kanban[estado.id] || []).map((evento, index) => (
+                    {eventosFiltrados.map((evento, index) => (
                       <Draggable
                         key={evento.id}
                         draggableId={String(evento.id)}
@@ -249,7 +441,8 @@ export default function Kanban() {
                 )}
               </Droppable>
             </div>
-          ))}
+          );
+          })}
         </div>
       </DragDropContext>
 

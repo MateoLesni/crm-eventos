@@ -156,6 +156,83 @@
   border-color: #d1d5db;
 }
 
+.toolbar-btn.active-filter {
+  border-color: #16a34a;
+  background-color: #f0fdf4;
+}
+
+.toolbar-btn.active-filter svg {
+  color: #16a34a;
+}
+
+.filter-badge {
+  width: 6px;
+  height: 6px;
+  background-color: #16a34a;
+  border-radius: 50%;
+  margin-left: 4px;
+}
+
+/* Barra de filtros globales */
+.filtros-globales-bar {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 20px;
+}
+
+.filtros-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.filtro-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filtro-group label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filtro-group input,
+.filtro-group select {
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #374151;
+  min-width: 140px;
+}
+
+.filtro-group input:focus,
+.filtro-group select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.btn-limpiar-filtros {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #dc2626;
+  color: #dc2626;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-limpiar-filtros:hover {
+  background: #fef2f2;
+}
+
 /* Kanban Board */
 .kanban-board {
   display: flex;
@@ -182,11 +259,113 @@
   border-radius: 6px 6px 0 0;
 }
 
+.column-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
 .column-header h3 {
-  margin: 0 0 4px 0;
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
   color: #172b4d;
+}
+
+/* Column action buttons (filter & sort) */
+.column-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.column-action-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  color: #9ca3af;
+}
+
+.column-action-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.column-action-btn:hover {
+  background-color: #dfe1e6;
+  color: #374151;
+}
+
+.column-action-btn.filter-active {
+  color: #16a34a;
+}
+
+.column-action-btn.filter-active:hover {
+  background-color: #dcfce7;
+}
+
+.column-action-btn.sort-desc {
+  color: #3b82f6;
+}
+
+.column-action-btn.sort-desc:hover {
+  background-color: #dbeafe;
+}
+
+/* Column filter input */
+.column-filter-input {
+  position: relative;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.column-filter-input input {
+  width: 100%;
+  padding: 6px 28px 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.column-filter-input input:focus {
+  outline: none;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.1);
+}
+
+.column-filter-input input::placeholder {
+  color: #9ca3af;
+}
+
+.clear-filter-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.clear-filter-btn:hover {
+  background-color: #f3f4f6;
+  color: #374151;
 }
 
 .column-stats {
