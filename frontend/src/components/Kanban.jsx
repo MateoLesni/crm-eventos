@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { eventosApi } from '../services/api';
 import EventoCard from './EventoCard';
 import EventoModal from './EventoModal';
@@ -131,32 +130,6 @@ export default function Kanban() {
       presupuestoMin: '',
       presupuestoMax: '',
     });
-  };
-
-  const handleDragEnd = async (result) => {
-    const { destination, source, draggableId } = result;
-
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-
-    const eventoId = parseInt(draggableId);
-    const nuevoEstado = destination.droppableId;
-    const estadoAnterior = source.droppableId;
-
-    // Actualizar UI optimisticamente
-    const evento = kanban[estadoAnterior].find(e => e.id === eventoId);
-    const newKanban = { ...kanban };
-    newKanban[estadoAnterior] = kanban[estadoAnterior].filter(e => e.id !== eventoId);
-    newKanban[nuevoEstado] = [...(kanban[nuevoEstado] || []), { ...evento, estado: nuevoEstado }];
-    setKanban(newKanban);
-
-    // Actualizar en backend
-    try {
-      await eventosApi.actualizar(eventoId, { estado: nuevoEstado });
-    } catch (error) {
-      console.error('Error actualizando estado:', error);
-      cargarEventos(); // Recargar si falla
-    }
   };
 
   const handleEventoClick = (evento, tab = 'detalle') => {
@@ -333,14 +306,13 @@ export default function Kanban() {
       )}
 
       {/* Kanban Board */}
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="kanban-board">
-          {ESTADOS.map((estado) => {
-            const eventosFiltrados = getEventosFiltrados(estado.id);
-            const tieneFiltroBusqueda = !!filtrosColumna[estado.id];
-            const ordenActual = ordenColumna[estado.id] || 'asc';
+      <div className="kanban-board">
+        {ESTADOS.map((estado) => {
+          const eventosFiltrados = getEventosFiltrados(estado.id);
+          const tieneFiltroBusqueda = !!filtrosColumna[estado.id];
+          const ordenActual = ordenColumna[estado.id] || 'asc';
 
-            return (
+          return (
             <div key={estado.id} className="kanban-column">
               <div className="column-header" style={{ borderTopColor: estado.color }}>
                 <div className="column-header-top">
@@ -402,51 +374,20 @@ export default function Kanban() {
                 </div>
               </div>
 
-              <Droppable droppableId={estado.id}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className={`column-content ${snapshot.isDraggingOver ? 'dragging-over' : ''}`}
-                  >
-                    {eventosFiltrados.map((evento, index) => (
-                      <Draggable
-                        key={evento.id}
-                        draggableId={String(evento.id)}
-                        index={index}
-                      >
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                          >
-                            <EventoCard
-                              evento={evento}
-                              isDragging={snapshot.isDragging}
-                              onClick={() => handleEventoClick(evento)}
-                              onPrecheckClick={() => handleEventoClick(evento, 'precheck')}
-                            />
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-
-                    {/* Botón agregar en columna */}
-                    <button className="add-in-column" onClick={() => setShowNuevoModal(true)}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 5v14M5 12h14"/>
-                      </svg>
-                    </button>
-                  </div>
-                )}
-              </Droppable>
+              <div className="column-content">
+                {eventosFiltrados.map((evento) => (
+                  <EventoCard
+                    key={evento.id}
+                    evento={evento}
+                    onClick={() => handleEventoClick(evento)}
+                    onPrecheckClick={() => handleEventoClick(evento, 'precheck')}
+                  />
+                ))}
+              </div>
             </div>
           );
-          })}
-        </div>
-      </DragDropContext>
+        })}
+      </div>
 
       {eventoSeleccionado && (
         <EventoModal

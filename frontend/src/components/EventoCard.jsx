@@ -41,7 +41,7 @@ function generarTituloAuto(evento) {
   return `Evento de ${evento.cliente?.nombre || 'cliente'}`;
 }
 
-export default function EventoCard({ evento, isDragging, onClick, onPrecheckClick }) {
+export default function EventoCard({ evento, onClick, onPrecheckClick }) {
   const prioridadColor = PRIORIDAD_INDICADOR[evento.prioridad] || PRIORIDAD_INDICADOR.normal;
 
   // Color del avatar basado en el ID del comercial
@@ -54,7 +54,7 @@ export default function EventoCard({ evento, isDragging, onClick, onPrecheckClic
 
   return (
     <div
-      className={`evento-card ${isDragging ? 'dragging' : ''}`}
+      className="evento-card"
       onClick={onClick}
     >
       <div className="card-content">
