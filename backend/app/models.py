@@ -59,7 +59,19 @@ class Cliente(db.Model):
     eventos = db.relationship('Evento', backref='cliente', lazy='dynamic')
     comercial_preferido = db.relationship('Usuario', foreign_keys=[comercial_preferido_id])
 
+    def to_dict_simple(self):
+        """Versión sin queries adicionales para listados"""
+        return {
+            'id': self.id,
+            'telefono': self.telefono,
+            'nombre': self.nombre,
+            'email': self.email,
+            'empresa': self.empresa,
+            'notas': self.notas,
+        }
+
     def to_dict(self):
+        """Versión completa con counts para detalle"""
         return {
             'id': self.id,
             'telefono': self.telefono,
@@ -136,12 +148,17 @@ class Evento(db.Model):
         # Fallback
         return f"Evento de {self.cliente.nombre if self.cliente else 'cliente'}"
 
-    def to_dict(self):
-        return {
+    def to_dict(self, include_counts=False):
+        """
+        Convierte el evento a diccionario.
+        include_counts=False para listados (evita queries adicionales)
+        include_counts=True para detalle individual
+        """
+        result = {
             'id': self.id,
             'titulo': self.titulo,  # Título personalizado (puede ser None)
             'titulo_display': self.titulo or self.generar_titulo_auto(),  # Título a mostrar
-            'cliente': self.cliente.to_dict() if self.cliente else None,
+            'cliente': self.cliente.to_dict_simple() if self.cliente else None,
             'local': {'id': self.local.id, 'nombre': self.local.nombre, 'color': self.local.color} if self.local else None,
             'comercial': self.comercial.to_dict() if self.comercial else None,
             'fecha_evento': self.fecha_evento.isoformat() if self.fecha_evento else None,
@@ -159,10 +176,20 @@ class Evento(db.Model):
             'thread_id': self.thread_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'cantidad_actividades': self.actividades.count(),
-            'es_cliente_recurrente': self.cliente.eventos.count() > 1 if self.cliente else False,
-            'tiene_precheck': self.precheck_conceptos.count() > 0 or self.precheck_adicionales.count() > 0 if hasattr(self, 'precheck_conceptos') else False
         }
+
+        # Campos que requieren queries adicionales - solo para detalle
+        if include_counts:
+            result['cantidad_actividades'] = self.actividades.count()
+            result['es_cliente_recurrente'] = self.cliente.eventos.count() > 1 if self.cliente else False
+            result['tiene_precheck'] = self.precheck_conceptos.count() > 0 or self.precheck_adicionales.count() > 0 if hasattr(self, 'precheck_conceptos') else False
+        else:
+            # Valores por defecto para listados
+            result['cantidad_actividades'] = 0
+            result['es_cliente_recurrente'] = False
+            result['tiene_precheck'] = False
+
+        return result
 
 # Tabla de Actividades (historial flexible)
 class Actividad(db.Model):

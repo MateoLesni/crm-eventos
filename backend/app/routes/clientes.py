@@ -16,7 +16,7 @@ def listar_clientes():
 @clientes_bp.route('/<int:id>', methods=['GET'])
 def obtener_cliente(id):
     cliente = Cliente.query.get_or_404(id)
-    eventos = [e.to_dict() for e in cliente.eventos.order_by(db.desc('created_at')).all()]
+    eventos = [e.to_dict(include_counts=True) for e in cliente.eventos.order_by(db.desc('created_at')).all()]
 
     return jsonify({
         'cliente': cliente.to_dict(),

@@ -580,7 +580,7 @@ def exportar_pdf(current_user, evento_id):
     resumen = calcular_resumen_precheck(evento)
 
     # Generar PDF
-    evento_dict = evento.to_dict()
+    evento_dict = evento.to_dict(include_counts=True)
     pdf_buffer = generar_pdf_precheck(evento_dict, conceptos, adicionales, pagos, resumen)
 
     # Nombre del archivo

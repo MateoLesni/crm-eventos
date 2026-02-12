@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Evento, Cliente, Actividad, Usuario, Local, RespuestaMail
 from app.routes.auth import get_current_user_from_token
+from sqlalchemy.orm import joinedload
 from datetime import datetime
 
 eventos_bp = Blueprint('eventos', __name__)
@@ -72,7 +73,12 @@ def listar_eventos():
     comercial_id = request.args.get('comercial_id')
     local_id = request.args.get('local_id')
 
-    query = Evento.query
+    # Usar joinedload para cargar relaciones en una sola query (evita N+1)
+    query = Evento.query.options(
+        joinedload(Evento.cliente),
+        joinedload(Evento.local),
+        joinedload(Evento.comercial)
+    )
 
     # Si es comercial, ve: CONSULTA_ENTRANTE (todos) + sus eventos asignados
     if user and user.rol == 'comercial':
@@ -128,7 +134,7 @@ def obtener_evento(id):
     actividades = [a.to_dict() for a in evento.actividades.all()]
 
     return jsonify({
-        'evento': evento.to_dict(),
+        'evento': evento.to_dict(include_counts=True),
         'actividades': actividades
     })
 
@@ -153,7 +159,7 @@ def crear_evento():
         if evento_existente:
             return jsonify({
                 'message': 'Evento ya existe con este thread_id',
-                'evento': evento_existente.to_dict(),
+                'evento': evento_existente.to_dict(include_counts=True),
                 'duplicado': True
             }), 200
 
@@ -302,7 +308,7 @@ def crear_evento():
         'message': 'Evento creado',
         'mensaje_estado': mensajes_estado.get(evento.estado, 'Evento creado.'),
         'estado_calculado': evento.estado,
-        'evento': evento.to_dict(),
+        'evento': evento.to_dict(include_counts=True),
         'evento_id': evento.id,
         'cliente_id': cliente.id,
         'es_cliente_nuevo': es_cliente_nuevo,
@@ -387,7 +393,7 @@ def actualizar_evento(id):
 
     return jsonify({
         'message': 'Evento actualizado',
-        'evento': evento.to_dict()
+        'evento': evento.to_dict(include_counts=True)
     })
 
 # POST /api/eventos/:id/actividades - Agregar actividad
@@ -453,7 +459,7 @@ def asignar_comercial(id):
 
     return jsonify({
         'message': f'Evento asignado a {comercial.nombre}',
-        'evento': evento.to_dict()
+        'evento': evento.to_dict(include_counts=True)
     })
 
 
@@ -488,7 +494,7 @@ def asignar_por_respuesta():
     if evento.comercial_id:
         return jsonify({
             'message': 'Evento ya tiene comercial asignado',
-            'evento': evento.to_dict(),
+            'evento': evento.to_dict(include_counts=True),
             'ya_asignado': True
         }), 200
 
@@ -547,7 +553,7 @@ def asignar_por_respuesta():
 
     return jsonify({
         'message': f'Evento asignado a {comercial.nombre}',
-        'evento': evento.to_dict(),
+        'evento': evento.to_dict(include_counts=True),
         'evento_id': evento.id,
         'comercial_id': comercial.id,
         'comercial_nombre': comercial.nombre
@@ -713,5 +719,5 @@ def migrar_evento():
         'cliente_id': cliente.id,
         'es_cliente_nuevo': es_cliente_nuevo,
         'estado': evento.estado,
-        'evento': evento.to_dict()
+        'evento': evento.to_dict(include_counts=True)
     }), 201
