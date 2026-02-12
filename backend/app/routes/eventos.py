@@ -1,10 +1,25 @@
 from flask import Blueprint, request, jsonify
 from app import db
-from app.models import Evento, Cliente, Actividad, Usuario, Local, RespuestaMail
+from app.models import Evento, Cliente, Actividad, Usuario, Local, RespuestaMail, EventoTransicion
 from app.routes.auth import get_current_user_from_token
 from sqlalchemy.orm import joinedload
 from sqlalchemy import text
 from datetime import datetime
+
+
+def registrar_transicion(evento, estado_anterior, estado_nuevo, usuario_id=None, origen='manual'):
+    """Helper para registrar una transición de estado"""
+    if estado_anterior == estado_nuevo:
+        return None
+    transicion = EventoTransicion(
+        evento_id=evento.id,
+        estado_anterior=estado_anterior,
+        estado_nuevo=estado_nuevo,
+        usuario_id=usuario_id,
+        origen=origen
+    )
+    db.session.add(transicion)
+    return transicion
 
 eventos_bp = Blueprint('eventos', __name__)
 
@@ -297,6 +312,11 @@ def crear_evento():
     evento.estado = calcular_estado_automatico(evento, es_nuevo=True)
 
     db.session.add(evento)
+    db.session.flush()  # Para obtener el ID del evento
+
+    # Registrar transición inicial (creación del evento)
+    origen_transicion = 'n8n' if thread_id else 'manual'
+    registrar_transicion(evento, None, evento.estado, usuario_id=None, origen=origen_transicion)
 
     # Si es cliente recurrente y tiene comercial preferido, sugerir asignación
     sugerencia_comercial = None
@@ -361,7 +381,7 @@ def actualizar_evento(id):
     # Campos actualizables (sin 'estado' - se calcula automáticamente excepto APROBADO/RECHAZADO)
     campos = ['titulo', 'local_id', 'comercial_id', 'fecha_evento', 'horario_inicio',
               'horario_fin', 'cantidad_personas', 'tipo', 'presupuesto',
-              'fecha_presupuesto', 'prioridad']
+              'fecha_presupuesto', 'prioridad', 'motivo_rechazo']
 
     estado_anterior = evento.estado
     user = get_current_user()
@@ -386,7 +406,7 @@ def actualizar_evento(id):
         # Calcular estado automático basado en los datos
         evento.estado = calcular_estado_automatico(evento)
 
-    # Registrar cambio de estado como actividad
+    # Registrar cambio de estado como actividad y transición
     if estado_anterior != evento.estado:
         actividad = Actividad(
             evento_id=evento.id,
@@ -395,6 +415,9 @@ def actualizar_evento(id):
             contenido=f"Estado cambiado de {estado_anterior} a {evento.estado}"
         )
         db.session.add(actividad)
+
+        # Registrar transición
+        registrar_transicion(evento, estado_anterior, evento.estado, usuario_id=user.id if user else None, origen='manual')
 
     # Si se agregó presupuesto, registrar actividad
     if 'presupuesto' in data and data['presupuesto']:
@@ -472,6 +495,10 @@ def asignar_comercial(id):
         )
         db.session.add(actividad_estado)
 
+        # Registrar transición
+        user = get_current_user()
+        registrar_transicion(evento, estado_anterior, evento.estado, usuario_id=user.id if user else None, origen='manual')
+
     db.session.commit()
 
     return jsonify({
@@ -524,8 +551,12 @@ def asignar_por_respuesta():
         }), 404
 
     # Asignar comercial al evento
+    estado_anterior = evento.estado
     evento.comercial_id = comercial.id
     evento.estado = 'ASIGNADO'
+
+    # Registrar transición
+    registrar_transicion(evento, estado_anterior, evento.estado, usuario_id=comercial.id, origen='n8n')
 
     # Actualizar comercial preferido del cliente
     if evento.cliente:
@@ -693,10 +724,30 @@ def migrar_evento():
             local_id = None  # Ignorar si no existe
 
     # Estado: usar el que viene o default ASIGNADO (ya que la migración trae asignados)
-    estado = data.get('estado', 'ASIGNADO')
+    estado_raw = data.get('estado', 'ASIGNADO')
+    # Normalizar a mayúsculas y mapear variantes comunes
+    estado = estado_raw.upper().strip() if estado_raw else 'ASIGNADO'
+
+    # Mapeo de variantes posibles
+    estado_map = {
+        'CONSULTA_ENTRANTE': 'CONSULTA_ENTRANTE',
+        'CONSULTA ENTRANTE': 'CONSULTA_ENTRANTE',
+        'CONSULTAENTRANTE': 'CONSULTA_ENTRANTE',
+        'ASIGNADO': 'ASIGNADO',
+        'CONTACTADO': 'CONTACTADO',
+        'COTIZADO': 'COTIZADO',
+        'APROBADO': 'APROBADO',
+        'RECHAZADO': 'RECHAZADO',
+        'CONCLUIDO': 'CONCLUIDO',
+    }
+    estado = estado_map.get(estado, estado)
+
     estados_validos = ['CONSULTA_ENTRANTE', 'ASIGNADO', 'CONTACTADO', 'COTIZADO', 'APROBADO', 'RECHAZADO', 'CONCLUIDO']
     if estado not in estados_validos:
         estado = 'ASIGNADO'
+
+    # Motivo de rechazo (solo relevante si estado es RECHAZADO)
+    motivo_rechazo = data.get('motivo_rechazo')
 
     # Crear evento
     evento = Evento(
@@ -715,10 +766,15 @@ def migrar_evento():
         fecha_presupuesto=fecha_presupuesto,
         canal_origen=data.get('canal_origen', 'migracion'),
         mensaje_original=data.get('mensaje_original'),
-        thread_id=data.get('thread_id')
+        thread_id=data.get('thread_id'),
+        motivo_rechazo=motivo_rechazo
     )
 
     db.session.add(evento)
+    db.session.flush()  # Para obtener el ID del evento
+
+    # Registrar transición inicial (migración)
+    registrar_transicion(evento, None, evento.estado, usuario_id=comercial_id, origen='migracion')
 
     # Actividad de migración
     actividad = Actividad(
@@ -738,3 +794,73 @@ def migrar_evento():
         'estado': evento.estado,
         'evento': evento.to_dict(include_counts=True)
     }), 201
+
+
+# GET /api/eventos/:id/transiciones - Historial de transiciones de estado
+@eventos_bp.route('/<int:id>/transiciones', methods=['GET'])
+def obtener_transiciones(id):
+    """
+    Retorna el historial completo de transiciones de estado de un evento,
+    incluyendo duración en cada estado.
+    """
+    evento = Evento.query.get_or_404(id)
+    transiciones = EventoTransicion.query.filter_by(evento_id=id).order_by(EventoTransicion.created_at).all()
+
+    # Calcular duraciones
+    transiciones_con_duracion = []
+    for i, trans in enumerate(transiciones):
+        trans_dict = trans.to_dict()
+
+        if i < len(transiciones) - 1:
+            # Duración hasta la siguiente transición
+            siguiente = transiciones[i + 1]
+            duracion_segundos = (siguiente.created_at - trans.created_at).total_seconds()
+        else:
+            # Último estado: duración hasta ahora
+            duracion_segundos = (datetime.utcnow() - trans.created_at).total_seconds()
+
+        trans_dict['duracion_segundos'] = duracion_segundos
+        trans_dict['duracion_legible'] = formatear_duracion(duracion_segundos)
+        transiciones_con_duracion.append(trans_dict)
+
+    # Calcular tiempo total por estado
+    duraciones_por_estado = {}
+    for trans in transiciones_con_duracion:
+        estado = trans['estado_nuevo']
+        duraciones_por_estado[estado] = duraciones_por_estado.get(estado, 0) + trans['duracion_segundos']
+
+    # Formatear duraciones totales
+    duraciones_formateadas = {
+        estado: {
+            'segundos': segundos,
+            'legible': formatear_duracion(segundos)
+        }
+        for estado, segundos in duraciones_por_estado.items()
+    }
+
+    return jsonify({
+        'evento_id': id,
+        'estado_actual': evento.estado,
+        'transiciones': transiciones_con_duracion,
+        'duracion_por_estado': duraciones_formateadas,
+        'total_transiciones': len(transiciones)
+    })
+
+
+def formatear_duracion(segundos):
+    """Convierte segundos a formato legible: 2d 5h 30m"""
+    if segundos < 60:
+        return f"{int(segundos)}s"
+
+    minutos = segundos / 60
+    if minutos < 60:
+        return f"{int(minutos)}m"
+
+    horas = minutos / 60
+    if horas < 24:
+        mins_restantes = int(minutos % 60)
+        return f"{int(horas)}h {mins_restantes}m" if mins_restantes else f"{int(horas)}h"
+
+    dias = horas / 24
+    horas_restantes = int(horas % 24)
+    return f"{int(dias)}d {horas_restantes}h" if horas_restantes else f"{int(dias)}d"

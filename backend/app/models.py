@@ -123,11 +123,37 @@ class Evento(db.Model):
     # Prioridad/Alerta (los círculos de colores que viste)
     prioridad = db.Column(db.String(20), default='normal')  # alta, normal, baja
 
+    # Motivo de rechazo (solo para estado RECHAZADO)
+    motivo_rechazo = db.Column(db.Text)
+
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     actividades = db.relationship('Actividad', backref='evento', lazy='dynamic', order_by='desc(Actividad.created_at)')
+    transiciones = db.relationship('EventoTransicion', backref='evento', lazy='dynamic', order_by='EventoTransicion.created_at')
+
+    def cambiar_estado(self, nuevo_estado, usuario_id=None, origen='manual'):
+        """
+        Cambia el estado del evento y registra la transición automáticamente.
+        origen: 'manual', 'sistema', 'n8n', 'migracion'
+        """
+        estado_anterior = self.estado
+        if estado_anterior == nuevo_estado:
+            return False  # No hay cambio
+
+        self.estado = nuevo_estado
+
+        # Registrar transición
+        transicion = EventoTransicion(
+            evento_id=self.id,
+            estado_anterior=estado_anterior,
+            estado_nuevo=nuevo_estado,
+            usuario_id=usuario_id,
+            origen=origen
+        )
+        db.session.add(transicion)
+        return True
 
     def generar_titulo_auto(self):
         """Genera título automático: PAX 20 — Costa 7070 — Social"""
@@ -172,6 +198,7 @@ class Evento(db.Model):
             'fecha_presupuesto': self.fecha_presupuesto.isoformat() if self.fecha_presupuesto else None,
             'canal_origen': self.canal_origen,
             'prioridad': self.prioridad,
+            'motivo_rechazo': self.motivo_rechazo,
             'mensaje_original': self.mensaje_original,
             'thread_id': self.thread_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -272,3 +299,54 @@ class ConversacionMail(db.Model):
             'comercial_nombre': self.comercial_nombre,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+
+# Tabla de Transiciones de Estado (auditoría de cambios de estado)
+class EventoTransicion(db.Model):
+    __tablename__ = 'evento_transiciones'
+
+    id = db.Column(db.Integer, primary_key=True)
+    evento_id = db.Column(db.Integer, db.ForeignKey('eventos.id'), nullable=False, index=True)
+    estado_anterior = db.Column(db.String(30))  # NULL si es creación
+    estado_nuevo = db.Column(db.String(30), nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'))  # Quién hizo el cambio (NULL si sistema/n8n)
+    origen = db.Column(db.String(20), default='manual')  # manual, sistema, n8n, migracion
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    usuario = db.relationship('Usuario', foreign_keys=[usuario_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'evento_id': self.evento_id,
+            'estado_anterior': self.estado_anterior,
+            'estado_nuevo': self.estado_nuevo,
+            'usuario': self.usuario.nombre if self.usuario else None,
+            'usuario_id': self.usuario_id,
+            'origen': self.origen,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+    @staticmethod
+    def calcular_duracion_estados(evento_id):
+        """
+        Calcula el tiempo que el evento estuvo en cada estado.
+        Retorna dict: {estado: segundos_totales}
+        """
+        transiciones = EventoTransicion.query.filter_by(evento_id=evento_id).order_by(EventoTransicion.created_at).all()
+
+        duraciones = {}
+        for i, trans in enumerate(transiciones):
+            if i < len(transiciones) - 1:
+                # Duración hasta la siguiente transición
+                siguiente = transiciones[i + 1]
+                duracion = (siguiente.created_at - trans.created_at).total_seconds()
+            else:
+                # Último estado: duración hasta ahora
+                from datetime import datetime
+                duracion = (datetime.utcnow() - trans.created_at).total_seconds()
+
+            estado = trans.estado_nuevo
+            duraciones[estado] = duraciones.get(estado, 0) + duracion
+
+        return duraciones
