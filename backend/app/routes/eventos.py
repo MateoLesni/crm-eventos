@@ -3,6 +3,7 @@ from app import db
 from app.models import Evento, Cliente, Actividad, Usuario, Local, RespuestaMail
 from app.routes.auth import get_current_user_from_token
 from sqlalchemy.orm import joinedload
+from sqlalchemy import text
 from datetime import datetime
 
 eventos_bp = Blueprint('eventos', __name__)
@@ -99,6 +100,20 @@ def listar_eventos():
 
     eventos = query.order_by(Evento.created_at.desc()).all()
 
+    # Obtener IDs de eventos con precheck en una sola query
+    eventos_con_precheck = set()
+    if eventos:
+        evento_ids = [e.id for e in eventos]
+        # Query para encontrar eventos que tienen al menos un concepto o adicional
+        result = db.session.execute(text("""
+            SELECT DISTINCT evento_id FROM (
+                SELECT evento_id FROM precheck_conceptos WHERE evento_id IN :ids
+                UNION
+                SELECT evento_id FROM precheck_adicionales WHERE evento_id IN :ids
+            ) AS combined
+        """), {'ids': tuple(evento_ids)})
+        eventos_con_precheck = {row[0] for row in result}
+
     # Agrupar por estado para el Kanban
     kanban = {
         'CONSULTA_ENTRANTE': [],
@@ -112,7 +127,9 @@ def listar_eventos():
     for evento in eventos:
         estado = evento.estado
         if estado in kanban:
-            kanban[estado].append(evento.to_dict())
+            evento_dict = evento.to_dict()
+            evento_dict['tiene_precheck'] = evento.id in eventos_con_precheck
+            kanban[estado].append(evento_dict)
 
     # Calcular totales por columna
     totales = {}
