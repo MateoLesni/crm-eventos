@@ -739,8 +739,8 @@ def migrar_evento():
         db.session.flush()
         es_cliente_nuevo = True
 
-    # Validar comercial si viene
-    comercial_id = data.get('comercial_id')
+    # Validar comercial si viene (sanitizar null/empty)
+    comercial_id = data.get('comercial_id') or None
     if comercial_id:
         comercial = Usuario.query.get(comercial_id)
         if not comercial:
@@ -815,24 +815,38 @@ def migrar_evento():
     # Motivo de rechazo (solo relevante si estado es RECHAZADO)
     motivo_rechazo = data.get('motivo_rechazo')
 
+    # Sanitizar campos numéricos (pueden venir como "" o null)
+    cantidad_personas = data.get('cantidad_personas')
+    if cantidad_personas == '' or cantidad_personas is None:
+        cantidad_personas = None
+    else:
+        try:
+            cantidad_personas = int(cantidad_personas)
+        except (ValueError, TypeError):
+            cantidad_personas = None
+
+    presupuesto = data.get('presupuesto')
+    if presupuesto == '' or presupuesto is None:
+        presupuesto = None
+
     # Crear evento
     evento = Evento(
         cliente_id=cliente.id,
         comercial_id=comercial_id,
-        titulo=data.get('titulo'),
-        local_id=local_id,
+        titulo=data.get('titulo') or None,
+        local_id=local_id or None,
         fecha_evento=fecha_evento,
         horario_inicio=horario_inicio,
         horario_fin=horario_fin,
         hora_consulta=hora_consulta,
-        cantidad_personas=data.get('cantidad_personas'),
-        tipo=data.get('tipo'),
+        cantidad_personas=cantidad_personas,
+        tipo=data.get('tipo') or None,
         estado=estado,
-        presupuesto=data.get('presupuesto'),
+        presupuesto=presupuesto,
         fecha_presupuesto=fecha_presupuesto,
         canal_origen=data.get('canal_origen', 'migracion'),
-        mensaje_original=data.get('mensaje_original'),
-        thread_id=data.get('thread_id'),
+        mensaje_original=data.get('mensaje_original') or None,
+        thread_id=data.get('thread_id') or None,
         motivo_rechazo=motivo_rechazo
     )
 
