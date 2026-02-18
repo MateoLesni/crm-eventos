@@ -284,11 +284,11 @@ def crear_evento():
     }
     canal_origen = canal_map.get(canal_origen, canal_origen.lower().replace(' ', '_') if canal_origen else 'web')
 
-    # Validaciones de dependencias
-    comercial_id = data.get('comercial_id')
-    horario_inicio = data.get('horario_inicio')
-    horario_fin = data.get('horario_fin')
-    presupuesto = data.get('presupuesto')
+    # Validaciones de dependencias (sanitizar strings vacías a None)
+    comercial_id = data.get('comercial_id') or None
+    horario_inicio = data.get('horario_inicio') or None
+    horario_fin = data.get('horario_fin') or None
+    presupuesto = data.get('presupuesto') or None
 
     # Si tiene horario o presupuesto, debe tener comercial asignado
     if (horario_inicio or horario_fin) and not comercial_id:
@@ -301,20 +301,30 @@ def crear_evento():
             'error': 'Para agregar presupuesto, primero debe asignar un comercial'
         }), 400
 
+    # Sanitizar cantidad_personas (puede venir como "" desde frontend)
+    cantidad_personas = data.get('cantidad_personas')
+    if cantidad_personas == '' or cantidad_personas is None:
+        cantidad_personas = None
+    else:
+        try:
+            cantidad_personas = int(cantidad_personas)
+        except (ValueError, TypeError):
+            cantidad_personas = None
+
     # Crear evento
     evento = Evento(
         cliente_id=cliente.id,
-        titulo=data.get('titulo'),
-        local_id=local_id,
+        titulo=data.get('titulo') or None,
+        local_id=local_id or None,
         fecha_evento=datetime.strptime(data['fecha_evento'], '%Y-%m-%d').date() if data.get('fecha_evento') else None,
         horario_inicio=datetime.strptime(horario_inicio, '%H:%M').time() if horario_inicio else None,
         horario_fin=datetime.strptime(horario_fin, '%H:%M').time() if horario_fin else None,
         hora_consulta=hora_consulta,
-        cantidad_personas=data.get('cantidad_personas'),
-        tipo=data.get('tipo'),  # Puede venir null, no asumimos 'social'
-        estado='CONSULTA_ENTRANTE',  # Estado inicial, se calculará después
+        cantidad_personas=cantidad_personas,
+        tipo=data.get('tipo') or None,
+        estado='CONSULTA_ENTRANTE',
         canal_origen=canal_origen,
-        mensaje_original=data.get('mensaje_original') or data.get('observacion'),  # N8N puede enviar 'observacion'
+        mensaje_original=data.get('mensaje_original') or data.get('observacion') or None,
         thread_id=thread_id,
         comercial_id=comercial_id,
         presupuesto=presupuesto
