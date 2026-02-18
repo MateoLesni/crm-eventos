@@ -106,7 +106,7 @@ class Evento(db.Model):
 
     # Estado y seguimiento
     estado = db.Column(db.String(30), default='CONSULTA_ENTRANTE')
-    # Estados: CONSULTA_ENTRANTE, ASIGNADO, CONTACTADO, COTIZADO, APROBADO, RECHAZADO, CONCLUIDO
+    # Estados: CONSULTA_ENTRANTE, ASIGNADO, CONTACTADO, COTIZADO, APROBADO, RECHAZADO, MULTIRESERVA, CONCLUIDO
 
     # Pre-check
     facturada = db.Column(db.Boolean, default=False)  # Para cálculo de IVA 21%
@@ -120,8 +120,9 @@ class Evento(db.Model):
     mensaje_original = db.Column(db.Text)
     thread_id = db.Column(db.String(100))  # Para vincular con Gmail
 
-    # Prioridad/Alerta (los círculos de colores que viste)
-    prioridad = db.Column(db.String(20), default='normal')  # alta, normal, baja
+    # Etiquetas rápidas (puntos en tarjeta)
+    es_prioritario = db.Column(db.Boolean, default=False)  # Punto rojo
+    es_tentativo = db.Column(db.Boolean, default=False)    # Punto verde (próximo a cerrar)
 
     # Motivo de rechazo (solo para estado RECHAZADO)
     motivo_rechazo = db.Column(db.Text)
@@ -143,6 +144,11 @@ class Evento(db.Model):
             return False  # No hay cambio
 
         self.estado = nuevo_estado
+
+        # Limpiar etiquetas al pasar a estados finales
+        if nuevo_estado in ['APROBADO', 'RECHAZADO']:
+            self.es_prioritario = False
+            self.es_tentativo = False
 
         # Registrar transición
         transicion = EventoTransicion(
@@ -197,7 +203,8 @@ class Evento(db.Model):
             'presupuesto': float(self.presupuesto) if self.presupuesto else None,
             'fecha_presupuesto': self.fecha_presupuesto.isoformat() if self.fecha_presupuesto else None,
             'canal_origen': self.canal_origen,
-            'prioridad': self.prioridad,
+            'es_prioritario': self.es_prioritario,
+            'es_tentativo': self.es_tentativo,
             'motivo_rechazo': self.motivo_rechazo,
             'mensaje_original': self.mensaje_original,
             'thread_id': self.thread_id,

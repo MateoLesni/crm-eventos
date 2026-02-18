@@ -1,6 +1,15 @@
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './Sidebar.css';
 
 export default function Sidebar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { usuario } = useAuth();
+
+  const isActive = (path) => location.pathname === path;
+  const isAdmin = usuario?.rol === 'admin';
+
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
@@ -15,7 +24,11 @@ export default function Sidebar() {
           </svg>
         </button>
 
-        <button className="nav-item active" title="Pipeline">
+        <button
+          className={`nav-item ${isActive('/') ? 'active' : ''}`}
+          title="Pipeline"
+          onClick={() => navigate('/')}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M12 2v20M2 12h20"/>
             <rect x="3" y="3" width="7" height="7" rx="1"/>
@@ -33,14 +46,17 @@ export default function Sidebar() {
           <span className="badge">9+</span>
         </button>
 
-        <button className="nav-item has-badge" title="Calendario">
+        <button
+          className={`nav-item ${isActive('/calendario') ? 'active' : ''}`}
+          title="Calendario"
+          onClick={() => navigate('/calendario')}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
             <line x1="16" y1="2" x2="16" y2="6"/>
             <line x1="8" y1="2" x2="8" y2="6"/>
             <line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
-          <span className="badge">3</span>
         </button>
 
         <button className="nav-item" title="Contactos">
@@ -52,13 +68,30 @@ export default function Sidebar() {
           </svg>
         </button>
 
-        <button className="nav-item" title="Reportes">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="18" y1="20" x2="18" y2="10"/>
-            <line x1="12" y1="20" x2="12" y2="4"/>
-            <line x1="6" y1="20" x2="6" y2="14"/>
-          </svg>
-        </button>
+        {isAdmin && (
+          <>
+            <button
+              className={`nav-item ${isActive('/reportes') ? 'active' : ''}`}
+              title="Reportes Operativos"
+              onClick={() => navigate('/reportes')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+            </button>
+            <button
+              className={`nav-item ${isActive('/reportes-financieros') ? 'active' : ''}`}
+              title="Reportes Financieros"
+              onClick={() => navigate('/reportes-financieros')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </button>
+          </>
+        )}
 
         <button className="nav-item" title="Configuración">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -1,0 +1,569 @@
+/* ============================================
+   REPORTES FINANCIEROS - Estilo Profesional
+   ============================================ */
+
+.reportes-financieros-container {
+  padding: 24px;
+  max-width: 1800px;
+  margin: 0 auto;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+/* Loading y Error */
+.reportes-loading,
+.reportes-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  font-size: 16px;
+  color: #6b7280;
+}
+
+/* Header */
+.rf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: white;
+  padding: 20px 24px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.rf-header-titulo h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.rf-subtitulo {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 4px;
+  display: block;
+}
+
+.rf-filtros {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rf-filtro-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rf-filtro-grupo label {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rf-filtro-grupo input,
+.rf-filtro-grupo select {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: white;
+  min-width: 140px;
+}
+
+.rf-filtro-grupo input:focus,
+.rf-filtro-grupo select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.rf-btn-aplicar {
+  padding: 8px 20px;
+  background: #1a1a2e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.rf-btn-aplicar:hover {
+  background: #2d2d44;
+}
+
+/* KPIs */
+.rf-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.rf-kpi-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-left: 4px solid #6b7280;
+}
+
+.rf-kpi-card.success {
+  border-left-color: #10b981;
+}
+
+.rf-kpi-card.success .rf-kpi-valor {
+  color: #059669;
+}
+
+.rf-kpi-card.warning {
+  border-left-color: #f59e0b;
+}
+
+.rf-kpi-card.warning .rf-kpi-valor {
+  color: #d97706;
+}
+
+.rf-kpi-card.info {
+  border-left-color: #3b82f6;
+}
+
+.rf-kpi-card.info .rf-kpi-valor {
+  color: #2563eb;
+}
+
+.rf-kpi-card.success-light {
+  border-left-color: #34d399;
+  background: linear-gradient(to right, #ecfdf5, white);
+}
+
+.rf-kpi-card.success-light .rf-kpi-valor {
+  color: #10b981;
+}
+
+.rf-kpi-card.warning-light {
+  border-left-color: #fbbf24;
+  background: linear-gradient(to right, #fffbeb, white);
+}
+
+.rf-kpi-card.warning-light .rf-kpi-valor {
+  color: #f59e0b;
+}
+
+.rf-kpi-valor {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a2e;
+  line-height: 1.2;
+}
+
+.rf-kpi-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-top: 4px;
+  display: block;
+}
+
+/* Secciones */
+.rf-seccion {
+  background: white;
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.rf-seccion-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.rf-seccion-header-left {
+  flex: 1;
+}
+
+.rf-seccion-filtro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rf-seccion-filtro label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.rf-seccion-filtro select {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  background: white;
+  min-width: 150px;
+  cursor: pointer;
+}
+
+.rf-seccion-filtro select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.rf-seccion-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a2e;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rf-seccion-desc {
+  margin: 6px 0 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* Contenedor de tabla con scroll */
+.rf-tabla-container {
+  overflow-x: auto;
+}
+
+/* Tabla base - Estilo financiero profesional */
+.rf-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.rf-tabla th {
+  background: #374151;
+  color: white;
+  font-weight: 600;
+  text-align: center;
+  padding: 10px 8px;
+  white-space: nowrap;
+  border: 1px solid #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-size: 11px;
+}
+
+.rf-tabla td {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.rf-tabla tbody tr {
+  background: white;
+}
+
+.rf-tabla tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.rf-tabla tbody tr:hover {
+  background: #f3f4f6;
+}
+
+/* Fila de totales */
+.rf-tabla tfoot tr.fila-totales {
+  background: #374151 !important;
+  color: white;
+}
+
+.rf-tabla tfoot tr.fila-totales td {
+  border-color: #4b5563;
+  font-weight: 600;
+  color: white;
+}
+
+.rf-tabla tfoot tr.fila-totales td strong {
+  color: white;
+}
+
+
+/* ============================================
+   TABLA FLUJO DE PAGOS
+   ============================================ */
+
+/* Asegurar texto blanco en headers */
+.rf-tabla th {
+  color: white !important;
+}
+
+.rf-tabla.flujo-pagos .col-mes-evento {
+  text-align: left;
+  font-weight: 500;
+  color: #1a1a2e;
+  min-width: 120px;
+}
+
+.rf-tabla.flujo-pagos .col-total-evento {
+  font-weight: 600;
+  color: #1a1a2e;
+  min-width: 120px;
+}
+
+.rf-tabla.flujo-pagos .col-pago {
+  min-width: 100px;
+  color: #374151;
+}
+
+.rf-tabla.flujo-pagos .col-total-pagado {
+  font-weight: 600;
+  color: #1a1a2e;
+  min-width: 120px;
+}
+
+/* ============================================
+   TABLA RESUMEN DE SALDOS
+   ============================================ */
+
+.rf-tabla.resumen-saldos .col-local {
+  text-align: left;
+  min-width: 100px;
+}
+
+.rf-tabla.resumen-saldos .col-id {
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 70px;
+}
+
+.rf-tabla.resumen-saldos .col-cliente {
+  text-align: left;
+  min-width: 180px;
+  font-weight: 500;
+  color: #1a1a2e;
+}
+
+.rf-tabla.resumen-saldos .col-fecha {
+  min-width: 90px;
+  color: #6b7280;
+}
+
+.rf-tabla.resumen-saldos .col-mes {
+  min-width: 80px;
+}
+
+.rf-tabla.resumen-saldos .col-monto {
+  text-align: right;
+  min-width: 100px;
+  font-weight: 500;
+}
+
+.rf-tabla.resumen-saldos .col-monto.restante {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.rf-tabla.resumen-saldos .col-estado {
+  min-width: 130px;
+}
+
+/* Badge de local */
+.rf-tabla .badge-local {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: white;
+}
+
+/* Badge de estado de saldo */
+.badge-estado-saldo {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-estado-saldo.saldado {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-estado-saldo.pendiente {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-estado-saldo.sin-presupuesto {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* Filas con estado */
+.rf-tabla.resumen-saldos .fila-saldado {
+  background: #f0fdf4 !important;
+}
+
+.rf-tabla.resumen-saldos .fila-pendiente {
+  background: #fffbeb !important;
+}
+
+/* Sin datos */
+.rf-tabla .sin-datos {
+  text-align: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* ============================================
+   TABLA CANALES DE ORIGEN
+   ============================================ */
+
+.rf-tabla.canales-origen .col-canal {
+  text-align: left;
+  font-weight: 600;
+  color: #1a1a2e;
+  min-width: 120px;
+}
+
+.rf-tabla.canales-origen .col-total {
+  font-weight: 600;
+  color: #1a1a2e;
+  min-width: 70px;
+}
+
+.rf-tabla.canales-origen .col-porcentaje {
+  color: #6b7280;
+  min-width: 60px;
+}
+
+.rf-tabla.canales-origen .col-local {
+  min-width: 100px;
+  border-bottom-width: 3px;
+}
+
+.rf-tabla.canales-origen .col-local-data {
+  min-width: 100px;
+}
+
+.rf-tabla.canales-origen .col-local-data .cantidad {
+  display: block;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.rf-tabla.canales-origen .col-local-data .porcentaje-mini {
+  display: block;
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+.rf-tabla.canales-origen .col-bar {
+  min-width: 150px;
+  padding: 8px 12px;
+}
+
+/* Barras de distribución */
+.rf-tabla .bar-container {
+  width: 100%;
+  height: 20px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rf-tabla .bar {
+  height: 100%;
+  display: flex;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rf-tabla .bar-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 1400px) {
+  .rf-kpis {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .reportes-financieros-container {
+    padding: 16px;
+  }
+
+  .rf-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rf-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rf-kpi-valor {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .rf-filtros {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .rf-filtro-grupo {
+    width: 100%;
+  }
+
+  .rf-filtro-grupo input,
+  .rf-filtro-grupo select {
+    width: 100%;
+  }
+
+  .rf-btn-aplicar {
+    width: 100%;
+  }
+
+  .rf-kpis {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .rf-seccion {
+    padding: 16px;
+  }
+
+  .rf-tabla th,
+  .rf-tabla td {
+    padding: 6px 4px;
+    font-size: 10px;
+  }
+}

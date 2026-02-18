@@ -1,12 +1,6 @@
+import { useState } from 'react';
+import { eventosApi } from '../services/api';
 import './EventoCard.css';
-
-// Colores de prioridad (los círculos a la derecha)
-const PRIORIDAD_INDICADOR = {
-  alta: '#ef4444',    // Rojo
-  media: '#f59e0b',   // Amarillo
-  normal: '#22c55e',  // Verde
-  baja: '#6b7280',    // Gris
-};
 
 // Avatares de colores para comerciales
 const AVATAR_COLORS = [
@@ -41,8 +35,9 @@ function generarTituloAuto(evento) {
   return `Evento de ${evento.cliente?.nombre || 'cliente'}`;
 }
 
-export default function EventoCard({ evento, onClick, onPrecheckClick }) {
-  const prioridadColor = PRIORIDAD_INDICADOR[evento.prioridad] || PRIORIDAD_INDICADOR.normal;
+export default function EventoCard({ evento, onClick, onPrecheckClick, onEtiquetaChange }) {
+  const [showMenu, setShowMenu] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Color del avatar basado en el ID del comercial
   const avatarColor = evento.comercial
@@ -51,6 +46,41 @@ export default function EventoCard({ evento, onClick, onPrecheckClick }) {
 
   // Título: usa titulo_display del backend, o genera localmente como fallback
   const titulo = evento.titulo_display || evento.titulo || generarTituloAuto(evento);
+
+  // Estados finales no muestran etiquetas
+  const esEstadoFinal = evento.estado === 'APROBADO' || evento.estado === 'RECHAZADO';
+
+  const handleEtiquetaClick = (e) => {
+    e.stopPropagation();
+    if (!esEstadoFinal) {
+      setShowMenu(!showMenu);
+    }
+  };
+
+  const handleSetEtiqueta = async (tipo) => {
+    setLoading(true);
+    setShowMenu(false);
+
+    try {
+      let newValue;
+      if (tipo === 'prioritario') {
+        newValue = { es_prioritario: !evento.es_prioritario };
+      } else if (tipo === 'tentativo') {
+        newValue = { es_tentativo: !evento.es_tentativo };
+      } else if (tipo === 'clear') {
+        newValue = { es_prioritario: false, es_tentativo: false };
+      }
+
+      await eventosApi.toggleEtiquetas(evento.id, newValue);
+      if (onEtiquetaChange) {
+        onEtiquetaChange();
+      }
+    } catch (error) {
+      console.error('Error al cambiar etiqueta:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div
@@ -81,11 +111,62 @@ export default function EventoCard({ evento, onClick, onPrecheckClick }) {
               P
             </span>
           )}
-          <span
-            className="prioridad-indicator"
-            style={{ backgroundColor: prioridadColor }}
-            title={`Prioridad ${evento.prioridad || 'normal'}`}
-          />
+
+          {/* Etiquetas - Solo mostrar si no es estado final */}
+          {!esEstadoFinal && (
+            <div className="etiquetas-container">
+              <div className="etiquetas-dots" onClick={handleEtiquetaClick}>
+                {/* Punto prioritario (rojo) - solo si está activo o ambos vacíos */}
+                <span
+                  className={`etiqueta-dot ${evento.es_prioritario ? 'prioritario' : 'empty'} ${!evento.es_prioritario && !evento.es_tentativo ? 'show-empty' : ''}`}
+                  title={evento.es_prioritario ? 'Prioritario' : 'Marcar etiqueta'}
+                />
+                {/* Punto tentativo (verde) - solo si está activo */}
+                {evento.es_tentativo && (
+                  <span
+                    className="etiqueta-dot tentativo"
+                    title="Tentativo"
+                  />
+                )}
+              </div>
+
+              {/* Menú de etiquetas */}
+              {showMenu && (
+                <>
+                  <div className="etiqueta-menu-overlay" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
+                  <div className="etiqueta-menu" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className={`etiqueta-option ${evento.es_prioritario ? 'active' : ''}`}
+                      onClick={() => handleSetEtiqueta('prioritario')}
+                      disabled={loading}
+                    >
+                      <span className="etiqueta-dot prioritario" />
+                      Prioritario
+                      {evento.es_prioritario && <span className="check-mark">✓</span>}
+                    </button>
+                    <button
+                      className={`etiqueta-option ${evento.es_tentativo ? 'active' : ''}`}
+                      onClick={() => handleSetEtiqueta('tentativo')}
+                      disabled={loading}
+                    >
+                      <span className="etiqueta-dot tentativo" />
+                      Tentativo
+                      {evento.es_tentativo && <span className="check-mark">✓</span>}
+                    </button>
+                    {(evento.es_prioritario || evento.es_tentativo) && (
+                      <button
+                        className="etiqueta-option clear"
+                        onClick={() => handleSetEtiqueta('clear')}
+                        disabled={loading}
+                      >
+                        Quitar todas
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

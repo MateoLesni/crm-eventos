@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { eventosApi, usuariosApi, clientesApi } from '../services/api';
+import { eventosApi, usuariosApi, clientesApi, calendarioApi } from '../services/api';
 import WhatsAppChat from './WhatsAppChat';
 import GmailChat from './GmailChat';
 import PreCheckTab from './PreCheckTab';
@@ -36,6 +36,11 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
   const [showEditarCliente, setShowEditarCliente] = useState(false);
   const [datosCliente, setDatosCliente] = useState({});
   const [guardandoCliente, setGuardandoCliente] = useState(false);
+
+  // Estados para advertencia de fecha duplicada
+  const [showAdvertenciaFecha, setShowAdvertenciaFecha] = useState(false);
+  const [eventosEnFecha, setEventosEnFecha] = useState([]);
+  const [pendienteGuardar, setPendienteGuardar] = useState(null);
 
   useEffect(() => {
     cargarDatos();
@@ -143,6 +148,28 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
     }
   };
 
+  const verificarFechaYGuardar = async (datos, forzar = false) => {
+    // Si hay fecha y local, verificar si hay eventos existentes
+    if (datos.fecha_evento && datos.local_id && !forzar) {
+      try {
+        const res = await calendarioApi.verificarFecha(datos.fecha_evento, datos.local_id, evento.id);
+        const verificacion = res.data;
+
+        if (verificacion.tiene_eventos) {
+          // Mostrar advertencia
+          setEventosEnFecha(verificacion.eventos);
+          setPendienteGuardar(datos);
+          setShowAdvertenciaFecha(true);
+          return false; // No guardar todavía
+        }
+      } catch (error) {
+        console.error('Error verificando fecha:', error);
+        // Si falla la verificación, continuar con el guardado
+      }
+    }
+    return true; // Continuar con el guardado
+  };
+
   const handleGuardarEdicion = async () => {
     // Validar que si hay horario, haya comercial asignado
     if ((datosEdicion.horario_inicio || datosEdicion.horario_fin) && !datosEdicion.comercial_id) {
@@ -150,10 +177,20 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
       return;
     }
 
+    // Verificar si la fecha está ocupada
+    const puedeGuardar = await verificarFechaYGuardar(datosEdicion);
+    if (!puedeGuardar) return;
+
+    await ejecutarGuardadoEdicion(datosEdicion);
+  };
+
+  const ejecutarGuardadoEdicion = async (datos) => {
     setGuardandoEdicion(true);
     try {
-      await eventosApi.actualizar(evento.id, datosEdicion);
+      await eventosApi.actualizar(evento.id, datos);
       setShowEditar(false);
+      setShowAdvertenciaFecha(false);
+      setPendienteGuardar(null);
       cargarDatos();
       onUpdated();
     } catch (error) {
@@ -163,6 +200,18 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
     } finally {
       setGuardandoEdicion(false);
     }
+  };
+
+  const handleConfirmarFechaDuplicada = async () => {
+    if (pendienteGuardar) {
+      await ejecutarGuardadoEdicion(pendienteGuardar);
+    }
+  };
+
+  const handleCancelarFechaDuplicada = () => {
+    setShowAdvertenciaFecha(false);
+    setPendienteGuardar(null);
+    setEventosEnFecha([]);
   };
 
   const handleCambiarEstadoFinal = async (nuevoEstado) => {
@@ -551,6 +600,11 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
         <div className="modal-overlay modal-cotizacion-overlay" onClick={() => setShowCotizacion(false)}>
           <div className="modal-cotizacion" onClick={(e) => e.stopPropagation()}>
             <h3>Agregar Cotizacion</h3>
+            {!eventoDetalle?.comercial?.id && (
+              <div className="field-warning" style={{ marginBottom: '12px' }}>
+                Para agregar cotizacion, primero debe asignar un comercial
+              </div>
+            )}
             <div className="cotizacion-input">
               <span className="input-prefix">$</span>
               <input
@@ -562,6 +616,8 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                 }}
                 placeholder="100.000"
                 autoFocus
+                disabled={!eventoDetalle?.comercial?.id}
+                className={!eventoDetalle?.comercial?.id ? 'disabled-field' : ''}
               />
             </div>
             <div className="cotizacion-btns">
@@ -571,7 +627,7 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
               <button
                 className="btn-primary"
                 onClick={handleGuardarCotizacion}
-                disabled={guardandoCotizacion || !montoCotizacion}
+                disabled={guardandoCotizacion || !montoCotizacion || !eventoDetalle?.comercial?.id}
               >
                 {guardandoCotizacion ? 'Guardando...' : 'Guardar'}
               </button>
@@ -661,6 +717,39 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                   </div>
                 </div>
 
+              </section>
+
+              {/* Asignacion - ANTES de horarios porque es requerido */}
+              <section className="form-section">
+                <h3>Asignacion</h3>
+                <div className="form-group">
+                  <label htmlFor="edit-comercial">
+                    Comercial {!datosEdicion.comercial_id && <span className="required-hint">(requerido para horarios)</span>}
+                  </label>
+                  <select
+                    id="edit-comercial"
+                    value={datosEdicion.comercial_id}
+                    onChange={(e) => setDatosEdicion({...datosEdicion, comercial_id: e.target.value})}
+                    className={!datosEdicion.comercial_id ? 'highlight-required' : ''}
+                  >
+                    <option value="">Sin asignar</option>
+                    {comerciales.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </section>
+
+              {/* Horarios - requieren comercial asignado */}
+              <section className="form-section">
+                <h3>Horarios</h3>
+                {!datosEdicion.comercial_id && (
+                  <div className="field-warning">
+                    Para asignar horarios, primero debe asignar un comercial
+                  </div>
+                )}
                 <div className="form-row">
                   <div className="form-group">
                     <label htmlFor="edit-horario-inicio">Horario inicio</label>
@@ -669,6 +758,8 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                       id="edit-horario-inicio"
                       value={datosEdicion.horario_inicio}
                       onChange={(e) => setDatosEdicion({...datosEdicion, horario_inicio: e.target.value})}
+                      disabled={!datosEdicion.comercial_id}
+                      className={!datosEdicion.comercial_id ? 'disabled-field' : ''}
                     />
                   </div>
 
@@ -679,28 +770,10 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                       id="edit-horario-fin"
                       value={datosEdicion.horario_fin}
                       onChange={(e) => setDatosEdicion({...datosEdicion, horario_fin: e.target.value})}
+                      disabled={!datosEdicion.comercial_id}
+                      className={!datosEdicion.comercial_id ? 'disabled-field' : ''}
                     />
                   </div>
-                </div>
-              </section>
-
-              {/* Asignacion */}
-              <section className="form-section">
-                <h3>Asignacion</h3>
-                <div className="form-group">
-                  <label htmlFor="edit-comercial">Comercial</label>
-                  <select
-                    id="edit-comercial"
-                    value={datosEdicion.comercial_id}
-                    onChange={(e) => setDatosEdicion({...datosEdicion, comercial_id: e.target.value})}
-                  >
-                    <option value="">Sin asignar</option>
-                    {comerciales.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.nombre}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </section>
 
@@ -797,6 +870,55 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                   {guardandoCliente ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Advertencia de Fecha Duplicada */}
+      {showAdvertenciaFecha && (
+        <div className="modal-overlay" onClick={handleCancelarFechaDuplicada}>
+          <div className="modal-content modal-small modal-warning" onClick={(e) => e.stopPropagation()}>
+            <div className="warning-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="48" height="48">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+
+            <h3>Fecha con eventos existentes</h3>
+
+            <p className="warning-message">
+              Ya existe{eventosEnFecha.length > 1 ? 'n' : ''} <strong>{eventosEnFecha.length} evento{eventosEnFecha.length > 1 ? 's' : ''}</strong> cotizado{eventosEnFecha.length > 1 ? 's' : ''} o aprobado{eventosEnFecha.length > 1 ? 's' : ''} para esta fecha en este local:
+            </p>
+
+            <div className="eventos-existentes">
+              {eventosEnFecha.map(ev => (
+                <div key={ev.id} className={`evento-existente ${ev.estado === 'APROBADO' || ev.estado === 'CONCLUIDO' ? 'aprobado' : 'cotizado'}`}>
+                  <span className="evento-cliente">{ev.cliente_nombre}</span>
+                  <span className="evento-horario">{ev.hora_inicio || '--:--'} - {ev.hora_fin || '--:--'}</span>
+                  <span className={`evento-estado ${ev.estado.toLowerCase()}`}>{ev.estado}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="warning-question">
+              ¿Deseas cotizar igualmente en esta fecha?
+            </p>
+
+            <div className="modal-footer">
+              <button type="button" className="btn-secondary" onClick={handleCancelarFechaDuplicada}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-warning"
+                onClick={handleConfirmarFechaDuplicada}
+                disabled={guardandoEdicion}
+              >
+                {guardandoEdicion ? 'Guardando...' : 'Sí, continuar'}
+              </button>
             </div>
           </div>
         </div>

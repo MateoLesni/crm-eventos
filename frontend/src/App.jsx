@@ -1,6 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Kanban from './components/Kanban';
+import Calendario from './pages/Calendario';
+import Reportes from './pages/Reportes';
+import ReportesFinancieros from './pages/ReportesFinancieros';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import './App.css';
@@ -13,6 +16,24 @@ function PrivateRoute({ children }) {
   }
 
   return usuario ? children : <Navigate to="/login" />;
+}
+
+function AdminRoute({ children }) {
+  const { usuario, loading } = useAuth();
+
+  if (loading) {
+    return <div className="loading-screen">Cargando...</div>;
+  }
+
+  if (!usuario) {
+    return <Navigate to="/login" />;
+  }
+
+  if (usuario.rol !== 'admin') {
+    return <Navigate to="/" />;
+  }
+
+  return children;
 }
 
 function AppRoutes() {
@@ -34,12 +55,50 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/calendario"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <Calendario />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/reportes"
+        element={
+          <AdminRoute>
+            <Layout>
+              <Reportes />
+            </Layout>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/reportes-financieros"
+        element={
+          <AdminRoute>
+            <Layout>
+              <ReportesFinancieros />
+            </Layout>
+          </AdminRoute>
+        }
+      />
     </Routes>
   );
 }
 
 function Layout({ children }) {
   const { usuario, logout } = useAuth();
+  const location = useLocation();
+
+  const getTitulo = () => {
+    if (location.pathname === '/calendario') return 'Calendario';
+    if (location.pathname === '/reportes') return 'Reportes Operativos';
+    if (location.pathname === '/reportes-financieros') return 'Reportes Financieros';
+    return 'Eventos';
+  };
 
   return (
     <div className="app-layout">
@@ -47,7 +106,7 @@ function Layout({ children }) {
       <div className="app-content">
         <header className="app-header">
           <div className="header-left">
-            <h1>Eventos</h1>
+            <h1>{getTitulo()}</h1>
           </div>
           <div className="header-center">
             <div className="search-box">

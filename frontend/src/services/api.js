@@ -44,6 +44,7 @@ export const eventosApi = {
   actualizar: (id, data) => api.put(`/eventos/${id}`, data),
   asignar: (id, comercialId) => api.put(`/eventos/${id}/asignar`, { comercial_id: comercialId }),
   agregarActividad: (id, data) => api.post(`/eventos/${id}/actividades`, data),
+  toggleEtiquetas: (id, etiquetas) => api.patch(`/eventos/${id}/etiquetas`, etiquetas),
 };
 
 // Clientes
@@ -105,6 +106,21 @@ export const precheckApi = {
   actualizarFacturada: (eventoId, facturada) => api.put(`/precheck/${eventoId}/facturada`, { facturada }),
   // PDF
   descargarPdf: (eventoId) => api.get(`/precheck/${eventoId}/pdf`, { responseType: 'blob' }),
+};
+
+// Calendario
+export const calendarioApi = {
+  obtenerEventos: (params) => api.get('/calendario/eventos', { params }),
+  verificarFecha: (fecha, localId, eventoId = null) =>
+    api.get('/calendario/verificar-fecha', {
+      params: { fecha, local_id: localId, evento_id: eventoId }
+    }),
+};
+
+// Locales
+export const localesApi = {
+  listar: () => api.get('/locales'),
+  obtener: (id) => api.get(`/locales/${id}`),
 };
 
 // Auth

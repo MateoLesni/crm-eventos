@@ -36,6 +36,18 @@ def create_app():
     from app.routes.conversacion_mail import conversacion_mail_bp
     app.register_blueprint(conversacion_mail_bp, url_prefix='/api/conversacion-mail')
 
+    # Registrar blueprint de Reportes (Dashboard admin)
+    from app.routes.reportes import reportes_bp
+    app.register_blueprint(reportes_bp, url_prefix='/api/reportes')
+
+    # Registrar blueprint de Calendario
+    from app.routes.calendario import calendario_bp
+    app.register_blueprint(calendario_bp, url_prefix='/api/calendario')
+
+    # Registrar blueprint de Locales
+    from app.routes.locales import locales_bp
+    app.register_blueprint(locales_bp, url_prefix='/api/locales')
+
     # Importar modelos para que SQLAlchemy los conozca
     from app import models  # Modelos del CRM
     from app import models_whatsapp  # Modelos de WhatsApp

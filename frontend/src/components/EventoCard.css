@@ -76,11 +76,112 @@
   justify-content: center;
 }
 
-.prioridad-indicator {
+/* Etiquetas Container */
+.etiquetas-container {
+  position: relative;
+}
+
+.etiquetas-dots {
+  display: flex;
+  gap: 3px;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.etiqueta-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   display: block;
+  transition: all 0.15s ease;
+}
+
+.etiqueta-dot.empty {
+  background-color: transparent;
+  border: 1.5px solid #d1d5db;
+  display: none;
+}
+
+.etiqueta-dot.empty.show-empty {
+  display: block;
+}
+
+.etiqueta-dot.prioritario {
+  background-color: #ef4444;
+  border: none;
+}
+
+.etiqueta-dot.tentativo {
+  background-color: #22c55e;
+  border: none;
+}
+
+.etiquetas-dots:hover .etiqueta-dot.empty {
+  border-color: #9ca3af;
+}
+
+/* Menú de etiquetas */
+.etiqueta-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+}
+
+.etiqueta-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 101;
+  min-width: 140px;
+  overflow: hidden;
+}
+
+.etiqueta-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.etiqueta-option:hover {
+  background-color: #f3f4f6;
+}
+
+.etiqueta-option.active {
+  background-color: #f0fdf4;
+}
+
+.etiqueta-option.clear {
+  border-top: 1px solid #e5e7eb;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.etiqueta-option .etiqueta-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+
+.check-mark {
+  margin-left: auto;
+  color: #22c55e;
+  font-size: 12px;
 }
 
 /* Card Footer */

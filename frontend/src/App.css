@@ -23,26 +23,30 @@ body {
   margin-left: 56px;
   display: flex;
   flex-direction: column;
+  max-width: calc(100vw - 56px);
+  overflow-x: hidden;
 }
 
 /* Header */
 .app-header {
   background: white;
-  padding: 12px 24px;
+  padding: 8px 16px;
   display: flex;
   align-items: center;
   border-bottom: 1px solid #e5e7eb;
-  height: 56px;
-  gap: 24px;
+  height: 50px;
+  gap: 16px;
+  overflow: visible;
 }
 
 .header-left {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .header-left h1 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #111827;
 }
@@ -51,20 +55,22 @@ body {
   flex: 1;
   display: flex;
   justify-content: center;
+  min-width: 100px;
+  overflow: hidden;
 }
 
 .search-box {
   position: relative;
   width: 100%;
-  max-width: 400px;
+  max-width: 300px;
 }
 
 .search-box input {
   width: 100%;
-  padding: 8px 12px 8px 36px;
+  padding: 6px 10px 6px 32px;
   border: 1px solid #e5e7eb;
-  border-radius: 20px;
-  font-size: 14px;
+  border-radius: 18px;
+  font-size: 13px;
   background-color: #f9fafb;
   transition: all 0.2s;
 }
@@ -93,11 +99,13 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  min-width: fit-content;
 }
 
 .btn-icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: none;
   background: transparent;
   border-radius: 50%;
@@ -109,8 +117,8 @@ body {
 }
 
 .btn-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   color: #6b7280;
 }
 
@@ -123,18 +131,19 @@ body {
 }
 
 .user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  margin-left: 8px;
+  margin-left: 4px;
+  flex-shrink: 0;
 }
 
 .user-avatar:hover {
@@ -145,6 +154,7 @@ body {
 .app-main {
   flex: 1;
   overflow: hidden;
+  max-width: 100%;
 }
 
 /* Loading */

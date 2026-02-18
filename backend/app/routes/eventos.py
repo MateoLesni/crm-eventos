@@ -31,7 +31,12 @@ ESTADO_PRIORIDAD = {
     'COTIZADO': 4,
     'APROBADO': 5,
     'RECHAZADO': 5,
+    'MULTIRESERVA': 5,  # Estado especial para Reservas Múltiples
+    'CONCLUIDO': 6,
 }
+
+# Email del usuario "Reservas Múltiples" - usado para auto-asignar estado MULTIRESERVA
+RESERVAS_MULTIPLES_EMAIL = 'reservasmultiples@opgroup.com.ar'
 
 def get_current_user():
     return get_current_user_from_token()
@@ -39,10 +44,11 @@ def get_current_user():
 def calcular_estado_automatico(evento, es_nuevo=False):
     """
     Calcula el estado que debería tener el evento basado en sus datos.
-    Solo sube de estado, nunca baja (excepto APROBADO/RECHAZADO que son manuales).
+    Solo sube de estado, nunca baja (excepto APROBADO/RECHAZADO/MULTIRESERVA que son finales).
 
     Reglas:
     - Sin comercial, sin horario, sin presupuesto -> CONSULTA_ENTRANTE
+    - Con comercial "Reservas Múltiples" -> MULTIRESERVA (estado especial)
     - Con comercial asignado -> ASIGNADO
     - Con horario (y comercial) -> CONTACTADO
     - Con presupuesto (y comercial) -> COTIZADO
@@ -50,15 +56,20 @@ def calcular_estado_automatico(evento, es_nuevo=False):
     estado_actual = evento.estado if not es_nuevo else 'CONSULTA_ENTRANTE'
     prioridad_actual = ESTADO_PRIORIDAD.get(estado_actual, 1)
 
-    # Si está en estado final (APROBADO/RECHAZADO), no cambiar automáticamente
-    if estado_actual in ['APROBADO', 'RECHAZADO']:
+    # Si está en estado final (APROBADO/RECHAZADO/MULTIRESERVA/CONCLUIDO), no cambiar automáticamente
+    if estado_actual in ['APROBADO', 'RECHAZADO', 'MULTIRESERVA', 'CONCLUIDO']:
         return estado_actual
 
     # Determinar el estado que corresponde según los datos
     nuevo_estado = 'CONSULTA_ENTRANTE'
 
-    # Si tiene comercial asignado -> ASIGNADO
+    # Si tiene comercial asignado
     if evento.comercial_id:
+        # Verificar si es "Reservas Múltiples" -> MULTIRESERVA
+        comercial = Usuario.query.get(evento.comercial_id)
+        if comercial and comercial.email == RESERVAS_MULTIPLES_EMAIL:
+            return 'MULTIRESERVA'  # Estado especial, se asigna directamente
+
         nuevo_estado = 'ASIGNADO'
 
         # Si tiene horario (y comercial) -> CONTACTADO
@@ -136,6 +147,7 @@ def listar_eventos():
         'CONTACTADO': [],
         'COTIZADO': [],
         'APROBADO': [],
+        'CONCLUIDO': [],
         'RECHAZADO': []
     }
 
@@ -381,7 +393,7 @@ def actualizar_evento(id):
     # Campos actualizables (sin 'estado' - se calcula automáticamente excepto APROBADO/RECHAZADO)
     campos = ['titulo', 'local_id', 'comercial_id', 'fecha_evento', 'horario_inicio',
               'horario_fin', 'cantidad_personas', 'tipo', 'presupuesto',
-              'fecha_presupuesto', 'prioridad', 'motivo_rechazo']
+              'fecha_presupuesto', 'es_prioritario', 'es_tentativo', 'motivo_rechazo']
 
     estado_anterior = evento.estado
     user = get_current_user()
@@ -401,7 +413,18 @@ def actualizar_evento(id):
 
     # Manejar estado manual (solo APROBADO/RECHAZADO pueden ser manuales)
     if 'estado' in data and data['estado'] in ['APROBADO', 'RECHAZADO']:
-        evento.estado = data['estado']
+        nuevo_estado = data['estado']
+
+        # Si es APROBADO y la fecha del evento ya pasó, marcar como CONCLUIDO directamente
+        if nuevo_estado == 'APROBADO' and evento.fecha_evento:
+            hoy = datetime.utcnow().date()
+            if evento.fecha_evento < hoy:
+                nuevo_estado = 'CONCLUIDO'
+
+        evento.estado = nuevo_estado
+        # Limpiar etiquetas al pasar a estados finales
+        evento.es_prioritario = False
+        evento.es_tentativo = False
     else:
         # Calcular estado automático basado en los datos
         evento.estado = calcular_estado_automatico(evento)
@@ -504,6 +527,39 @@ def asignar_comercial(id):
     return jsonify({
         'message': f'Evento asignado a {comercial.nombre}',
         'evento': evento.to_dict(include_counts=True)
+    })
+
+
+# PATCH /api/eventos/:id/etiquetas - Toggle rápido de etiquetas (prioritario/tentativo)
+@eventos_bp.route('/<int:id>/etiquetas', methods=['PATCH'])
+def toggle_etiquetas(id):
+    """
+    Toggle rápido de etiquetas desde la tarjeta del Kanban.
+    Body: { "es_prioritario": true/false, "es_tentativo": true/false }
+    Solo actualiza los campos que vienen en el body.
+    No permite cambiar etiquetas en eventos APROBADO/RECHAZADO.
+    """
+    evento = Evento.query.get_or_404(id)
+
+    # No permitir en estados finales
+    if evento.estado in ['APROBADO', 'RECHAZADO']:
+        return jsonify({
+            'error': 'No se pueden modificar etiquetas en eventos aprobados o rechazados'
+        }), 400
+
+    data = request.get_json()
+
+    if 'es_prioritario' in data:
+        evento.es_prioritario = bool(data['es_prioritario'])
+
+    if 'es_tentativo' in data:
+        evento.es_tentativo = bool(data['es_tentativo'])
+
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Etiquetas actualizadas',
+        'evento': evento.to_dict()
     })
 
 
@@ -864,3 +920,56 @@ def formatear_duracion(segundos):
     dias = horas / 24
     horas_restantes = int(horas % 24)
     return f"{int(dias)}d {horas_restantes}h" if horas_restantes else f"{int(dias)}d"
+
+
+# POST /api/eventos/concluir-finalizados - Cron job para marcar eventos concluidos
+@eventos_bp.route('/concluir-finalizados', methods=['POST'])
+def concluir_eventos_finalizados():
+    """
+    Endpoint para cron job (Cloud Scheduler).
+    Marca como CONCLUIDO todos los eventos APROBADOS cuya fecha_evento ya pasó.
+    Ejecutar diariamente a las 00:05.
+
+    También puede recibir un parámetro 'key' para autenticación básica del cron.
+    """
+    # Autenticación opcional por key (para Cloud Scheduler)
+    cron_key = request.args.get('key') or request.headers.get('X-Cron-Key')
+    # Puedes validar contra una variable de entorno si lo necesitas
+
+    hoy = datetime.utcnow().date()
+
+    # Buscar eventos APROBADOS con fecha_evento anterior a hoy
+    eventos_a_concluir = Evento.query.filter(
+        Evento.estado == 'APROBADO',
+        Evento.fecha_evento < hoy
+    ).all()
+
+    concluidos = []
+    for evento in eventos_a_concluir:
+        estado_anterior = evento.estado
+        evento.estado = 'CONCLUIDO'
+
+        # Registrar transición
+        registrar_transicion(evento, estado_anterior, 'CONCLUIDO', usuario_id=None, origen='sistema')
+
+        # Registrar actividad
+        actividad = Actividad(
+            evento_id=evento.id,
+            tipo='sistema',
+            contenido='Evento marcado como CONCLUIDO automáticamente (fecha del evento finalizada)'
+        )
+        db.session.add(actividad)
+
+        concluidos.append({
+            'id': evento.id,
+            'titulo': evento.titulo or evento.generar_titulo_auto(),
+            'fecha_evento': evento.fecha_evento.isoformat() if evento.fecha_evento else None
+        })
+
+    db.session.commit()
+
+    return jsonify({
+        'message': f'{len(concluidos)} eventos marcados como CONCLUIDO',
+        'fecha_ejecucion': hoy.isoformat(),
+        'eventos_concluidos': concluidos
+    })
