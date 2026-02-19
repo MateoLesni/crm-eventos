@@ -22,6 +22,9 @@ const LOCALES = [
   { id: 2, nombre: 'Kona' },
   { id: 3, nombre: 'MilVidas' },
   { id: 4, nombre: 'CoChinChina' },
+  { id: 5, nombre: 'Cruza Polo' },
+  { id: 6, nombre: 'Cruza Recoleta' },
+  { id: 7, nombre: 'La Mala' },
 ];
 
 // Mapeo de nombres de color a códigos hex
@@ -72,6 +75,11 @@ const saveToStorage = (key, value) => {
 
 export default function Kanban() {
   const { isAdmin } = useAuth();
+
+  // Comerciales no ven CONSULTA_ENTRANTE para evitar especulación
+  const estadosVisibles = isAdmin
+    ? ESTADOS
+    : ESTADOS.filter(e => e.id !== 'CONSULTA_ENTRANTE');
 
   const [kanban, setKanban] = useState({});
   const [totales, setTotales] = useState({});
@@ -236,8 +244,10 @@ export default function Kanban() {
   const getTodosLosEventos = () => {
     let eventos = [];
 
-    // Combinar todos los eventos de todas las columnas
+    // Combinar eventos de las columnas visibles según rol
+    const idsVisibles = estadosVisibles.map(e => e.id);
     Object.keys(kanban).forEach(estadoId => {
+      if (!idsVisibles.includes(estadoId)) return;
       const eventosEstado = kanban[estadoId] || [];
       eventos = [...eventos, ...eventosEstado];
     });
@@ -585,7 +595,7 @@ export default function Kanban() {
       {/* Kanban Board */}
       {vistaActiva === 'kanban' && (
       <div className="kanban-board">
-        {ESTADOS.map((estado) => {
+        {estadosVisibles.map((estado) => {
           const eventosFiltrados = getEventosFiltrados(estado.id);
           const tieneFiltroBusqueda = !!filtrosColumna[estado.id];
           const ordenActual = ordenColumna[estado.id] || 'asc';
