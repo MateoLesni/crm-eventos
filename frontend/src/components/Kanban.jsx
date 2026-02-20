@@ -13,8 +13,8 @@ const ESTADOS = [
   { id: 'COTIZADO', nombre: 'Cotizado', color: '#f59e0b' },
   { id: 'APROBADO', nombre: 'Aprobado', color: '#10b981' },
   { id: 'RECHAZADO', nombre: 'Rechazado', color: '#ef4444' },
-  { id: 'MULTIRESERVA', nombre: 'Multireserva', color: '#0ea5e9' },
   { id: 'CONCLUIDO', nombre: 'Concluido', color: '#059669' },
+  { id: 'MULTIRESERVA', nombre: 'Multireserva', color: '#0ea5e9' },
 ];
 
 const LOCALES = [
@@ -103,6 +103,8 @@ export default function Kanban() {
       presupuestoMin: '',
       presupuestoMax: '',
       comercial_id: '',
+      paxMin: '',
+      paxMax: '',
     })
   );
   const [showFiltrosGlobales, setShowFiltrosGlobales] = useState(() =>
@@ -161,7 +163,7 @@ export default function Kanban() {
 
   const cargarComerciales = async () => {
     try {
-      const response = await usuariosApi.listar('comercial');
+      const response = await usuariosApi.listar();
       setComerciales(response.data.usuarios || []);
     } catch (error) {
       console.error('Error cargando comerciales:', error);
@@ -194,6 +196,14 @@ export default function Kanban() {
     }
     if (filtrosGlobales.comercial_id) {
       resultado = resultado.filter(e => e.comercial?.id === parseInt(filtrosGlobales.comercial_id));
+    }
+    if (filtrosGlobales.paxMin) {
+      const min = parseInt(filtrosGlobales.paxMin);
+      resultado = resultado.filter(e => (e.cantidad_personas || 0) >= min);
+    }
+    if (filtrosGlobales.paxMax) {
+      const max = parseInt(filtrosGlobales.paxMax);
+      resultado = resultado.filter(e => (e.cantidad_personas || 0) <= max);
     }
 
     return resultado;
@@ -348,6 +358,8 @@ export default function Kanban() {
       presupuestoMin: '',
       presupuestoMax: '',
       comercial_id: '',
+      paxMin: '',
+      paxMax: '',
     });
   };
 
@@ -550,6 +562,26 @@ export default function Kanban() {
                 <option value="social">Social</option>
                 <option value="corporativo">Corporativo</option>
               </select>
+            </div>
+            <div className="filtro-group">
+              <label>PAX desde</label>
+              <input
+                type="number"
+                placeholder="0"
+                min="0"
+                value={filtrosGlobales.paxMin}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, paxMin: e.target.value})}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>PAX hasta</label>
+              <input
+                type="number"
+                placeholder="Sin límite"
+                min="0"
+                value={filtrosGlobales.paxMax}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, paxMax: e.target.value})}
+              />
             </div>
             {isAdmin && (
               <div className="filtro-group">

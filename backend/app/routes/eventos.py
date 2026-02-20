@@ -147,8 +147,9 @@ def listar_eventos():
         'CONTACTADO': [],
         'COTIZADO': [],
         'APROBADO': [],
+        'RECHAZADO': [],
+        'MULTIRESERVA': [],
         'CONCLUIDO': [],
-        'RECHAZADO': []
     }
 
     for evento in eventos:
@@ -421,22 +422,52 @@ def actualizar_evento(id):
 
             setattr(evento, campo, valor)
 
-    # Manejar estado manual (solo APROBADO/RECHAZADO pueden ser manuales)
-    if 'estado' in data and data['estado'] in ['APROBADO', 'RECHAZADO']:
+    # Manejar estado manual
+    if 'estado' in data:
         nuevo_estado = data['estado']
 
-        # Si es APROBADO y la fecha del evento ya pasó, marcar como CONCLUIDO directamente
-        if nuevo_estado == 'APROBADO' and evento.fecha_evento:
-            hoy = datetime.utcnow().date()
-            if evento.fecha_evento < hoy:
-                nuevo_estado = 'CONCLUIDO'
+        # Bloquear cambios de estado en CONCLUIDO
+        if estado_anterior == 'CONCLUIDO':
+            return jsonify({'error': 'No se puede cambiar el estado de un evento concluido'}), 400
 
-        evento.estado = nuevo_estado
-        # Limpiar etiquetas al pasar a estados finales
-        evento.es_prioritario = False
-        evento.es_tentativo = False
+        # Revertir estado: desde APROBADO/RECHAZADO a estado anterior
+        if nuevo_estado == 'REVERTIR_ESTADO' and estado_anterior in ['APROBADO', 'RECHAZADO']:
+            # Verificar que no tenga pre-check
+            tiene_precheck = (evento.precheck_conceptos.count() > 0 or evento.precheck_adicionales.count() > 0)
+            if tiene_precheck:
+                return jsonify({'error': 'No se puede revertir un evento que ya tiene pre-check creado'}), 400
+
+            # Limpiar motivo_rechazo si se revierte desde RECHAZADO
+            if estado_anterior == 'RECHAZADO':
+                evento.motivo_rechazo = None
+
+            # Recalcular estado automático basado en los datos del evento
+            evento.estado = calcular_estado_automatico(evento, es_nuevo=True)
+
+        # Aprobar o rechazar manualmente
+        elif nuevo_estado in ['APROBADO', 'RECHAZADO']:
+            # Validar motivo obligatorio para RECHAZADO
+            if nuevo_estado == 'RECHAZADO':
+                motivo = data.get('motivo_rechazo', '').strip() if data.get('motivo_rechazo') else ''
+                if not motivo:
+                    return jsonify({'error': 'El motivo de rechazo es obligatorio'}), 400
+                evento.motivo_rechazo = motivo
+
+            # Si es APROBADO y la fecha del evento ya pasó, marcar como CONCLUIDO directamente
+            if nuevo_estado == 'APROBADO' and evento.fecha_evento:
+                hoy = datetime.utcnow().date()
+                if evento.fecha_evento < hoy:
+                    nuevo_estado = 'CONCLUIDO'
+
+            evento.estado = nuevo_estado
+            # Limpiar etiquetas al pasar a estados finales
+            evento.es_prioritario = False
+            evento.es_tentativo = False
+        else:
+            # Estado no reconocido para cambio manual, calcular automático
+            evento.estado = calcular_estado_automatico(evento)
     else:
-        # Calcular estado automático basado en los datos
+        # Sin estado en data, calcular estado automático basado en los datos
         evento.estado = calcular_estado_automatico(evento)
 
     # Registrar cambio de estado como actividad y transición
@@ -720,11 +751,15 @@ def migrar_evento():
     if telefono:
         cliente = Cliente.query.filter_by(telefono=telefono).first()
 
-    # Si encontró cliente existente, actualizar email si viene y no tenía
+    # Si encontró cliente existente, actualizar datos si vienen mejores
     if cliente:
         email_cliente = data.get('email_cliente')
         if email_cliente and not cliente.email:
             cliente.email = email_cliente
+        # Actualizar nombre si el actual es genérico y viene uno real
+        if nombre_cliente and nombre_cliente.lower() not in ('sin nombre', ''):
+            if not cliente.nombre or cliente.nombre.lower() in ('sin nombre', ''):
+                cliente.nombre = nombre_cliente
     else:
         # Generar teléfono único si no viene
         if not telefono:

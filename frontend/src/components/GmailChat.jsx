@@ -98,9 +98,7 @@ export default function GmailChat({ threadId, nombreCliente, embedded = false })
             <div className="gmail-message-header">
               <div className="gmail-sender">
                 <span className="sender-name">
-                  {msg.tipo_emisor === 'equipo'
-                    ? (msg.comercial_nombre || msg.de_nombre || 'Equipo')
-                    : (msg.de_nombre || msg.de_email || 'Cliente')}
+                  {msg.de_nombre || msg.de_email || 'Sin nombre'}
                 </span>
                 <span className="sender-email">{msg.de_email}</span>
               </div>

@@ -997,3 +997,150 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ============================================
+   MODAL DE RECHAZO
+   ============================================ */
+
+.modal-rechazo {
+  text-align: center;
+  padding: 32px;
+}
+
+.rechazo-icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.rechazo-icon svg {
+  color: #dc2626;
+}
+
+.modal-rechazo h3 {
+  margin: 0 0 12px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.rechazo-message {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.rechazo-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  margin-bottom: 8px;
+  background: #f9fafb;
+  color: #1a1a2e;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.rechazo-textarea:focus {
+  outline: none;
+  border-color: #dc2626;
+  background: white;
+}
+
+.rechazo-textarea::placeholder {
+  color: #9ca3af;
+}
+
+.btn-rechazar-confirm {
+  padding: 10px 24px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-rechazar-confirm:hover {
+  background: #b91c1c;
+}
+
+.btn-rechazar-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   MOTIVO DE RECHAZO DISPLAY
+   ============================================ */
+
+.motivo-rechazo-display {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 3px solid #dc2626;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 12px;
+}
+
+.motivo-rechazo-display strong {
+  display: block;
+  font-size: 12px;
+  color: #991b1b;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.motivo-rechazo-display p {
+  margin: 0;
+  font-size: 14px;
+  color: #7f1d1d;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ============================================
+   BOTONES DE REVERSION DE ESTADO
+   ============================================ */
+
+.estado-revertir-btns {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.btn-revertir {
+  padding: 8px 16px;
+  background: white;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-revertir:hover {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #9ca3af;
+}
+
+.revertir-bloqueado {
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+}

@@ -31,7 +31,7 @@ export default function NuevoEventoModal({ onClose, onCreated }) {
 
   const cargarDatos = async () => {
     try {
-      const comercialesRes = await usuariosApi.listar('comercial');
+      const comercialesRes = await usuariosApi.listar();
       setComerciales(comercialesRes.data.usuarios);
 
       // TODO: Agregar endpoint para listar locales
@@ -42,6 +42,7 @@ export default function NuevoEventoModal({ onClose, onCreated }) {
         { id: 4, nombre: 'CoChinChina', color: 'violeta' },
         { id: 5, nombre: 'Cruza Polo', color: 'rojo' },
         { id: 6, nombre: 'Cruza Recoleta', color: 'rosa' },
+        { id: 7, nombre: 'La Mala', color: 'naranja' },
       ]);
     } catch (error) {
       console.error('Error cargando datos:', error);

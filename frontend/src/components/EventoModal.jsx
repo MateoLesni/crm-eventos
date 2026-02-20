@@ -12,6 +12,7 @@ const LOCALES = [
   { id: 4, nombre: 'CoChinChina' },
   { id: 5, nombre: 'Cruza Polo' },
   { id: 6, nombre: 'Cruza Recoleta' },
+  { id: 7, nombre: 'La Mala' },
 ];
 
 export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tabInicial = 'detalle' }) {
@@ -42,6 +43,11 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
   const [eventosEnFecha, setEventosEnFecha] = useState([]);
   const [pendienteGuardar, setPendienteGuardar] = useState(null);
 
+  // Estados para modal de rechazo
+  const [showRechazo, setShowRechazo] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [guardandoRechazo, setGuardandoRechazo] = useState(false);
+
   useEffect(() => {
     cargarDatos();
   }, [evento.id]);
@@ -50,7 +56,7 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
     try {
       const [eventoRes, comercialesRes] = await Promise.all([
         eventosApi.obtener(evento.id),
-        usuariosApi.listar('comercial'),
+        usuariosApi.listar(),
       ]);
       setEventoDetalle(eventoRes.data.evento);
       setActividades(eventoRes.data.actividades);
@@ -221,6 +227,38 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
       onUpdated();
     } catch (error) {
       console.error('Error cambiando estado:', error);
+      alert(error.response?.data?.error || 'Error cambiando estado');
+    }
+  };
+
+  const handleConfirmarRechazo = async () => {
+    if (!motivoRechazo.trim()) return;
+    setGuardandoRechazo(true);
+    try {
+      await eventosApi.actualizar(evento.id, {
+        estado: 'RECHAZADO',
+        motivo_rechazo: motivoRechazo.trim()
+      });
+      setShowRechazo(false);
+      setMotivoRechazo('');
+      cargarDatos();
+      onUpdated();
+    } catch (error) {
+      console.error('Error rechazando evento:', error);
+      alert(error.response?.data?.error || 'Error al rechazar evento');
+    } finally {
+      setGuardandoRechazo(false);
+    }
+  };
+
+  const handleRevertirEstado = async () => {
+    try {
+      await eventosApi.actualizar(evento.id, { estado: 'REVERTIR_ESTADO' });
+      cargarDatos();
+      onUpdated();
+    } catch (error) {
+      console.error('Error revirtiendo estado:', error);
+      alert(error.response?.data?.error || 'Error al revertir estado');
     }
   };
 
@@ -493,8 +531,16 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                     </button>
                   </div>
 
-                  {/* Botones de estado final */}
-                  {eventoDetalle?.estado !== 'APROBADO' && eventoDetalle?.estado !== 'RECHAZADO' && (
+                  {/* Motivo de rechazo visible */}
+                  {eventoDetalle?.estado === 'RECHAZADO' && eventoDetalle?.motivo_rechazo && (
+                    <div className="motivo-rechazo-display">
+                      <strong>Motivo del rechazo:</strong>
+                      <p>{eventoDetalle.motivo_rechazo}</p>
+                    </div>
+                  )}
+
+                  {/* Botones de estado final - para eventos que NO están en estado final */}
+                  {eventoDetalle?.estado !== 'APROBADO' && eventoDetalle?.estado !== 'RECHAZADO' && eventoDetalle?.estado !== 'CONCLUIDO' && (
                     <div className="estado-final-btns">
                       <button
                         className="btn-confirmar"
@@ -504,10 +550,38 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                       </button>
                       <button
                         className="btn-rechazar"
-                        onClick={() => handleCambiarEstadoFinal('RECHAZADO')}
+                        onClick={() => setShowRechazo(true)}
                       >
                         Rechazar
                       </button>
+                    </div>
+                  )}
+
+                  {/* Botones de reversión - para RECHAZADO */}
+                  {eventoDetalle?.estado === 'RECHAZADO' && (
+                    <div className="estado-revertir-btns">
+                      <button
+                        className="btn-revertir"
+                        onClick={handleRevertirEstado}
+                      >
+                        Revertir estado
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Botones de reversión - para APROBADO */}
+                  {eventoDetalle?.estado === 'APROBADO' && (
+                    <div className="estado-revertir-btns">
+                      {tienePrecheck ? (
+                        <span className="revertir-bloqueado">No se puede revertir (tiene pre-check)</span>
+                      ) : (
+                        <button
+                          className="btn-revertir"
+                          onClick={handleRevertirEstado}
+                        >
+                          Revertir estado
+                        </button>
+                      )}
                     </div>
                   )}
                 </section>
@@ -918,6 +992,54 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                 disabled={guardandoEdicion}
               >
                 {guardandoEdicion ? 'Guardando...' : 'Sí, continuar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Motivo de Rechazo */}
+      {showRechazo && (
+        <div className="modal-overlay" onClick={() => { setShowRechazo(false); setMotivoRechazo(''); }}>
+          <div className="modal-content modal-small modal-rechazo" onClick={(e) => e.stopPropagation()}>
+            <div className="rechazo-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="48" height="48">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+            </div>
+
+            <h3>Motivo del rechazo</h3>
+
+            <p className="rechazo-message">
+              Describe el motivo por el cual se rechaza este evento. Esta informacion es obligatoria.
+            </p>
+
+            <textarea
+              className="rechazo-textarea"
+              value={motivoRechazo}
+              onChange={(e) => setMotivoRechazo(e.target.value)}
+              placeholder="Ej: El cliente cancelo por falta de presupuesto, cambio de fecha no disponible, etc."
+              maxLength={2000}
+              autoFocus
+            />
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => { setShowRechazo(false); setMotivoRechazo(''); }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-rechazar-confirm"
+                onClick={handleConfirmarRechazo}
+                disabled={!motivoRechazo.trim() || guardandoRechazo}
+              >
+                {guardandoRechazo ? 'Rechazando...' : 'Confirmar rechazo'}
               </button>
             </div>
           </div>

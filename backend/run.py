@@ -14,6 +14,7 @@ def init_db():
             {'nombre': 'CoChinChina', 'color': 'violeta'},
             {'nombre': 'Cruza Polo', 'color': 'rojo'},
             {'nombre': 'Cruza Recoleta', 'color': 'rosa'},
+            {'nombre': 'La Mala', 'color': 'naranja'},
         ]
 
         for local_data in locales_data:
@@ -22,11 +23,13 @@ def init_db():
 
         # Crear usuarios iniciales
         usuarios_data = [
-            {'nombre': 'Pilar Toca', 'email': 'pilar@nuevogastro.com', 'rol': 'admin', 'password': 'admin123'},
+            {'nombre': 'Pilar Toca', 'email': 'eventos@nuevogastro.com', 'rol': 'admin', 'password': 'admin123'},
             {'nombre': 'Traianna Rosas', 'email': 'comercial1@nuevogastro.com', 'rol': 'comercial', 'password': 'comercial123'},
             {'nombre': 'Delfina Herrera Paz', 'email': 'comercial2@nuevogastro.com', 'rol': 'comercial', 'password': 'comercial123'},
             {'nombre': 'Johanna Gatti', 'email': 'comercial3@nuevogastro.com', 'rol': 'comercial', 'password': 'comercial123'},
             {'nombre': 'Valentina Cousteix', 'email': 'comercial4@nuevogastro.com', 'rol': 'comercial', 'password': 'comercial123'},
+            {'nombre': 'Reservas Múltiples', 'email': 'reservasmultiples@opgroup.com.ar', 'rol': 'comercial', 'password': 'comercial123'},
+            {'nombre': 'Tano', 'email': 'augustoniro91@gmail.com', 'rol': 'admin', 'password': 'tano2024'},
         ]
 
         for user_data in usuarios_data:
