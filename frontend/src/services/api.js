@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://crm-backend-656730419070.us-central1.run.app/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://crm-eventos-backend-656730419070.us-central1.run.app/api';
 
 const api = axios.create({
   baseURL: API_URL,
