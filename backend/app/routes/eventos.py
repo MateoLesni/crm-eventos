@@ -33,6 +33,7 @@ ESTADO_PRIORIDAD = {
     'RECHAZADO': 5,
     'MULTIRESERVA': 5,  # Estado especial para Reservas Múltiples
     'CONCLUIDO': 6,
+    'ELIMINADO': 7,
 }
 
 # Email del usuario "Reservas Múltiples" - usado para auto-asignar estado MULTIRESERVA
@@ -105,7 +106,7 @@ def listar_eventos():
         joinedload(Evento.cliente),
         joinedload(Evento.local),
         joinedload(Evento.comercial)
-    )
+    ).filter(Evento.estado != 'ELIMINADO')
 
     # Si es comercial, ve: CONSULTA_ENTRANTE (todos) + sus eventos asignados
     if user and user.rol == 'comercial':
@@ -171,6 +172,24 @@ def listar_eventos():
         'kanban': kanban,
         'totales': totales
     })
+
+# GET /api/eventos/eliminados - Listar eventos eliminados (papelera)
+@eventos_bp.route('/eliminados', methods=['GET'])
+def listar_eliminados():
+    user = get_current_user()
+
+    query = Evento.query.options(
+        joinedload(Evento.cliente),
+        joinedload(Evento.local),
+        joinedload(Evento.comercial)
+    ).filter(Evento.estado == 'ELIMINADO')
+
+    # Comerciales solo ven sus eliminados, admins ven todos
+    if user and user.rol == 'comercial':
+        query = query.filter(Evento.comercial_id == user.id)
+
+    eventos = query.order_by(Evento.updated_at.desc()).all()
+    return jsonify({'eventos': [e.to_dict() for e in eventos]})
 
 # GET /api/eventos/:id - Detalle de un evento
 @eventos_bp.route('/<int:id>', methods=['GET'])
@@ -382,6 +401,10 @@ def actualizar_evento(id):
     evento = Evento.query.get_or_404(id)
     data = request.get_json()
 
+    # Bloquear edición de eventos ELIMINADOS (solo se permite REVERTIR_ESTADO)
+    if evento.estado == 'ELIMINADO' and data.get('estado') != 'REVERTIR_ESTADO':
+        return jsonify({'error': 'No se puede editar un evento eliminado. Restauralo primero desde la papelera.'}), 400
+
     # Validaciones de dependencias ANTES de actualizar
     # Determinar el comercial_id que tendrá el evento después de la actualización
     comercial_id_nuevo = data.get('comercial_id', evento.comercial_id)
@@ -432,10 +455,13 @@ def actualizar_evento(id):
 
         # Revertir estado: desde APROBADO/RECHAZADO a estado anterior
         if nuevo_estado == 'REVERTIR_ESTADO' and estado_anterior in ['APROBADO', 'RECHAZADO']:
-            # Verificar que no tenga pre-check
-            tiene_precheck = (evento.precheck_conceptos.count() > 0 or evento.precheck_adicionales.count() > 0)
-            if tiene_precheck:
-                return jsonify({'error': 'No se puede revertir un evento que ya tiene pre-check creado'}), 400
+            # Si tiene pre-check, eliminar conceptos y adicionales (conservar pagos)
+            if evento.precheck_conceptos.count() > 0:
+                for concepto in evento.precheck_conceptos.all():
+                    db.session.delete(concepto)
+            if evento.precheck_adicionales.count() > 0:
+                for adicional in evento.precheck_adicionales.all():
+                    db.session.delete(adicional)
 
             # Limpiar motivo_rechazo si se revierte desde RECHAZADO
             if estado_anterior == 'RECHAZADO':
@@ -443,6 +469,23 @@ def actualizar_evento(id):
 
             # Recalcular estado automático basado en los datos del evento
             evento.estado = calcular_estado_automatico(evento, es_nuevo=True)
+
+        # Revertir estado: desde ELIMINADO al estado que tenía antes
+        elif nuevo_estado == 'REVERTIR_ESTADO' and estado_anterior == 'ELIMINADO':
+            evento.estado = evento.estado_pre_eliminacion or 'CONSULTA_ENTRANTE'
+            evento.motivo_eliminacion = None
+            evento.estado_pre_eliminacion = None
+
+        # Eliminar evento (soft delete)
+        elif nuevo_estado == 'ELIMINADO':
+            motivo = data.get('motivo_eliminacion', '').strip() if data.get('motivo_eliminacion') else ''
+            if not motivo or len(motivo) < 5:
+                return jsonify({'error': 'El motivo de eliminación es obligatorio (mínimo 5 caracteres)'}), 400
+            evento.estado_pre_eliminacion = estado_anterior
+            evento.motivo_eliminacion = motivo
+            evento.estado = 'ELIMINADO'
+            evento.es_prioritario = False
+            evento.es_tentativo = False
 
         # Aprobar o rechazar manualmente
         elif nuevo_estado in ['APROBADO', 'RECHAZADO']:

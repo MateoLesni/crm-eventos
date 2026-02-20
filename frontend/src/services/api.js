@@ -45,6 +45,7 @@ export const eventosApi = {
   asignar: (id, comercialId) => api.put(`/eventos/${id}/asignar`, { comercial_id: comercialId }),
   agregarActividad: (id, data) => api.post(`/eventos/${id}/actividades`, data),
   toggleEtiquetas: (id, etiquetas) => api.patch(`/eventos/${id}/etiquetas`, etiquetas),
+  listarEliminados: () => api.get('/eventos/eliminados'),
 };
 
 // Clientes

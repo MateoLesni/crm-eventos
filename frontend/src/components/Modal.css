@@ -1144,3 +1144,166 @@
   color: #9ca3af;
   font-style: italic;
 }
+
+/* ============================================
+   MODAL DE REVERTIR ESTADO
+   ============================================ */
+
+.modal-revertir {
+  text-align: center;
+  padding: 32px;
+}
+
+.revertir-icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.revertir-icon svg {
+  color: #6b7280;
+}
+
+.modal-revertir h3 {
+  margin: 0 0 16px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.revertir-message {
+  font-size: 15px;
+  color: #374151;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.revertir-message strong {
+  color: #111827;
+  font-weight: 600;
+}
+
+.revertir-precheck-warning {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #92400e;
+  margin-bottom: 20px;
+  text-align: left;
+  line-height: 1.5;
+}
+
+.btn-revertir-confirm {
+  padding: 10px 24px;
+  background: #374151;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-revertir-confirm:hover {
+  background: #1f2937;
+}
+
+.btn-revertir-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   MODAL DE ELIMINACIÓN
+   ============================================ */
+
+.modal-eliminar {
+  text-align: center;
+  padding: 32px;
+}
+
+.eliminar-icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.eliminar-icon svg {
+  color: #6b7280;
+}
+
+.modal-eliminar h3 {
+  margin: 0 0 12px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.eliminar-message {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.eliminar-message strong {
+  color: #374151;
+}
+
+.eliminar-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  margin-bottom: 4px;
+  background: #f9fafb;
+  color: #1a1a2e;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.eliminar-textarea:focus {
+  outline: none;
+  border-color: #6b7280;
+  background: white;
+}
+
+.eliminar-textarea::placeholder {
+  color: #9ca3af;
+}
+
+.eliminar-hint {
+  display: block;
+  font-size: 12px;
+  color: #f59e0b;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.btn-eliminar-confirm {
+  padding: 10px 24px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-eliminar-confirm:hover {
+  background: #b91c1c;
+}
+
+.btn-eliminar-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

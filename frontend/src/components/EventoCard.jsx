@@ -35,7 +35,7 @@ function generarTituloAuto(evento) {
   return `Evento de ${evento.cliente?.nombre || 'cliente'}`;
 }
 
-export default function EventoCard({ evento, onClick, onPrecheckClick, onEtiquetaChange }) {
+export default function EventoCard({ evento, onClick, onPrecheckClick, onEtiquetaChange, onEliminar }) {
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -47,14 +47,12 @@ export default function EventoCard({ evento, onClick, onPrecheckClick, onEtiquet
   // Título: usa titulo_display del backend, o genera localmente como fallback
   const titulo = evento.titulo_display || evento.titulo || generarTituloAuto(evento);
 
-  // Estados finales no muestran etiquetas
+  // Estados finales no muestran etiquetas de prioritario/tentativo
   const esEstadoFinal = evento.estado === 'APROBADO' || evento.estado === 'RECHAZADO';
 
   const handleEtiquetaClick = (e) => {
     e.stopPropagation();
-    if (!esEstadoFinal) {
-      setShowMenu(!showMenu);
-    }
+    setShowMenu(!showMenu);
   };
 
   const handleSetEtiqueta = async (tipo) => {
@@ -112,61 +110,80 @@ export default function EventoCard({ evento, onClick, onPrecheckClick, onEtiquet
             </span>
           )}
 
-          {/* Etiquetas - Solo mostrar si no es estado final */}
-          {!esEstadoFinal && (
-            <div className="etiquetas-container">
-              <div className="etiquetas-dots" onClick={handleEtiquetaClick}>
-                {/* Punto prioritario (rojo) - solo si está activo o ambos vacíos */}
+          {/* Etiquetas y menú de acciones */}
+          <div className="etiquetas-container">
+            <div className="etiquetas-dots" onClick={handleEtiquetaClick}>
+              {/* Punto prioritario (rojo) - solo si está activo o ambos vacíos (no en estados finales) */}
+              {!esEstadoFinal && (
                 <span
                   className={`etiqueta-dot ${evento.es_prioritario ? 'prioritario' : 'empty'} ${!evento.es_prioritario && !evento.es_tentativo ? 'show-empty' : ''}`}
                   title={evento.es_prioritario ? 'Prioritario' : 'Marcar etiqueta'}
                 />
-                {/* Punto tentativo (verde) - solo si está activo */}
-                {evento.es_tentativo && (
-                  <span
-                    className="etiqueta-dot tentativo"
-                    title="Tentativo"
-                  />
-                )}
-              </div>
-
-              {/* Menú de etiquetas */}
-              {showMenu && (
-                <>
-                  <div className="etiqueta-menu-overlay" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
-                  <div className="etiqueta-menu" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      className={`etiqueta-option ${evento.es_prioritario ? 'active' : ''}`}
-                      onClick={() => handleSetEtiqueta('prioritario')}
-                      disabled={loading}
-                    >
-                      <span className="etiqueta-dot prioritario" />
-                      Prioritario
-                      {evento.es_prioritario && <span className="check-mark">✓</span>}
-                    </button>
-                    <button
-                      className={`etiqueta-option ${evento.es_tentativo ? 'active' : ''}`}
-                      onClick={() => handleSetEtiqueta('tentativo')}
-                      disabled={loading}
-                    >
-                      <span className="etiqueta-dot tentativo" />
-                      Tentativo
-                      {evento.es_tentativo && <span className="check-mark">✓</span>}
-                    </button>
-                    {(evento.es_prioritario || evento.es_tentativo) && (
-                      <button
-                        className="etiqueta-option clear"
-                        onClick={() => handleSetEtiqueta('clear')}
-                        disabled={loading}
-                      >
-                        Quitar todas
-                      </button>
-                    )}
-                  </div>
-                </>
+              )}
+              {/* Punto tentativo (verde) - solo si está activo */}
+              {!esEstadoFinal && evento.es_tentativo && (
+                <span
+                  className="etiqueta-dot tentativo"
+                  title="Tentativo"
+                />
+              )}
+              {/* En estados finales, mostrar solo el dot vacío para acceder al menú */}
+              {esEstadoFinal && (
+                <span className="etiqueta-dot empty show-empty" title="Opciones" />
               )}
             </div>
-          )}
+
+            {/* Menú de etiquetas */}
+            {showMenu && (
+              <>
+                <div className="etiqueta-menu-overlay" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
+                <div className="etiqueta-menu" onClick={(e) => e.stopPropagation()}>
+                  {!esEstadoFinal && (
+                    <>
+                      <button
+                        className={`etiqueta-option ${evento.es_prioritario ? 'active' : ''}`}
+                        onClick={() => handleSetEtiqueta('prioritario')}
+                        disabled={loading}
+                      >
+                        <span className="etiqueta-dot prioritario" />
+                        Prioritario
+                        {evento.es_prioritario && <span className="check-mark">✓</span>}
+                      </button>
+                      <button
+                        className={`etiqueta-option ${evento.es_tentativo ? 'active' : ''}`}
+                        onClick={() => handleSetEtiqueta('tentativo')}
+                        disabled={loading}
+                      >
+                        <span className="etiqueta-dot tentativo" />
+                        Tentativo
+                        {evento.es_tentativo && <span className="check-mark">✓</span>}
+                      </button>
+                      {(evento.es_prioritario || evento.es_tentativo) && (
+                        <button
+                          className="etiqueta-option clear"
+                          onClick={() => handleSetEtiqueta('clear')}
+                          disabled={loading}
+                        >
+                          Quitar todas
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {!esEstadoFinal && <div className="etiqueta-menu-divider" />}
+                  <button
+                    className="etiqueta-option eliminar"
+                    onClick={() => { setShowMenu(false); if (onEliminar) onEliminar(); }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    Eliminar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

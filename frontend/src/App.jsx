@@ -1,9 +1,11 @@
+import { useState, useEffect, cloneElement } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Kanban from './components/Kanban';
 import Calendario from './pages/Calendario';
 import Reportes from './pages/Reportes';
 import ReportesFinancieros from './pages/ReportesFinancieros';
+import Eliminados from './pages/Eliminados';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import './App.css';
@@ -85,6 +87,16 @@ function AppRoutes() {
           </AdminRoute>
         }
       />
+      <Route
+        path="/eliminados"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <Eliminados />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
     </Routes>
   );
 }
@@ -92,11 +104,20 @@ function AppRoutes() {
 function Layout({ children }) {
   const { usuario, logout } = useAuth();
   const location = useLocation();
+  const [busquedaGlobal, setBusquedaGlobal] = useState('');
+
+  // Limpiar búsqueda al cambiar de página
+  useEffect(() => {
+    setBusquedaGlobal('');
+  }, [location.pathname]);
+
+  const esPipeline = location.pathname === '/';
 
   const getTitulo = () => {
     if (location.pathname === '/calendario') return 'Calendario';
     if (location.pathname === '/reportes') return 'Reportes Operativos';
     if (location.pathname === '/reportes-financieros') return 'Reportes Financieros';
+    if (location.pathname === '/eliminados') return 'Papelera';
     return 'Eventos';
   };
 
@@ -109,13 +130,23 @@ function Layout({ children }) {
             <h1>{getTitulo()}</h1>
           </div>
           <div className="header-center">
-            <div className="search-box">
-              <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"/>
-                <path d="m21 21-4.35-4.35"/>
-              </svg>
-              <input type="text" placeholder="Buscar eventos..." />
-            </div>
+            {esPipeline && (
+              <div className={`search-box ${busquedaGlobal ? 'search-active' : ''}`}>
+                <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Buscar por cliente, local, telefono..."
+                  value={busquedaGlobal}
+                  onChange={(e) => setBusquedaGlobal(e.target.value)}
+                />
+                {busquedaGlobal && (
+                  <button className="search-clear" onClick={() => setBusquedaGlobal('')}>&times;</button>
+                )}
+              </div>
+            )}
           </div>
           <div className="header-right">
             <button className="btn-icon" title="Agregar">
@@ -142,7 +173,7 @@ function Layout({ children }) {
           </div>
         </header>
         <main className="app-main">
-          {children}
+          {esPipeline ? cloneElement(children, { busquedaGlobal }) : children}
         </main>
       </div>
     </div>

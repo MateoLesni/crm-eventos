@@ -184,6 +184,24 @@
   font-size: 12px;
 }
 
+.etiqueta-menu-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 2px 0;
+}
+
+.etiqueta-option.eliminar {
+  color: #dc2626;
+}
+
+.etiqueta-option.eliminar:hover {
+  background-color: #fef2f2;
+}
+
+.etiqueta-option.eliminar svg {
+  flex-shrink: 0;
+}
+
 /* Card Footer */
 .card-footer {
   display: flex;

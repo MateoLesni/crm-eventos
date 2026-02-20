@@ -106,7 +106,7 @@ class Evento(db.Model):
 
     # Estado y seguimiento
     estado = db.Column(db.String(30), default='CONSULTA_ENTRANTE')
-    # Estados: CONSULTA_ENTRANTE, ASIGNADO, CONTACTADO, COTIZADO, APROBADO, RECHAZADO, MULTIRESERVA, CONCLUIDO
+    # Estados: CONSULTA_ENTRANTE, ASIGNADO, CONTACTADO, COTIZADO, APROBADO, RECHAZADO, MULTIRESERVA, CONCLUIDO, ELIMINADO
 
     # Pre-check
     facturada = db.Column(db.Boolean, default=False)  # Para cálculo de IVA 21%
@@ -127,6 +127,10 @@ class Evento(db.Model):
     # Motivo de rechazo (solo para estado RECHAZADO)
     motivo_rechazo = db.Column(db.Text)
 
+    # Eliminación (solo para estado ELIMINADO)
+    motivo_eliminacion = db.Column(db.Text)
+    estado_pre_eliminacion = db.Column(db.String(30))  # Estado antes de eliminar, para restaurar
+
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -146,7 +150,7 @@ class Evento(db.Model):
         self.estado = nuevo_estado
 
         # Limpiar etiquetas al pasar a estados finales
-        if nuevo_estado in ['APROBADO', 'RECHAZADO']:
+        if nuevo_estado in ['APROBADO', 'RECHAZADO', 'ELIMINADO']:
             self.es_prioritario = False
             self.es_tentativo = False
 
@@ -206,6 +210,8 @@ class Evento(db.Model):
             'es_prioritario': self.es_prioritario,
             'es_tentativo': self.es_tentativo,
             'motivo_rechazo': self.motivo_rechazo,
+            'motivo_eliminacion': self.motivo_eliminacion,
+            'estado_pre_eliminacion': self.estado_pre_eliminacion,
             'mensaje_original': self.mensaje_original,
             'thread_id': self.thread_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,

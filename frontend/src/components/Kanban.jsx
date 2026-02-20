@@ -5,6 +5,7 @@ import EventoCard from './EventoCard';
 import EventoModal from './EventoModal';
 import NuevoEventoModal from './NuevoEventoModal';
 import './Kanban.css';
+import './Modal.css';
 
 const ESTADOS = [
   { id: 'CONSULTA_ENTRANTE', nombre: 'Consulta Entrante', color: '#6b7280' },
@@ -73,7 +74,7 @@ const saveToStorage = (key, value) => {
   }
 };
 
-export default function Kanban() {
+export default function Kanban({ busquedaGlobal = '' }) {
   const { isAdmin } = useAuth();
 
   // Comerciales no ven CONSULTA_ENTRANTE para evitar especulación
@@ -87,6 +88,11 @@ export default function Kanban() {
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [tabInicial, setTabInicial] = useState('detalle');
+
+  // Estado para modal de eliminación
+  const [eventoAEliminar, setEventoAEliminar] = useState(null);
+  const [motivoEliminacion, setMotivoEliminacion] = useState('');
+  const [guardandoEliminacion, setGuardandoEliminacion] = useState(false);
 
   // Vista activa (persistente)
   const [vistaActiva, setVistaActiva] = useState(() =>
@@ -210,31 +216,40 @@ export default function Kanban() {
   };
 
   // Función para filtrar y ordenar eventos de una columna
+  // Filtro de búsqueda por texto (reutilizable)
+  const filtrarPorTexto = (eventos, texto) => {
+    if (!texto) return eventos;
+    const q = texto.toLowerCase();
+    return eventos.filter(e => {
+      const clienteNombre = e.cliente?.nombre?.toLowerCase() || '';
+      const clienteTelefono = e.cliente?.telefono?.toLowerCase() || '';
+      const clienteEmail = e.cliente?.email?.toLowerCase() || '';
+      const localNombre = e.local?.nombre?.toLowerCase() || '';
+      const comercialNombre = e.comercial?.nombre?.toLowerCase() || '';
+      const fechaEvento = e.fecha_evento || '';
+      const titulo = e.titulo_display?.toLowerCase() || '';
+
+      return clienteNombre.includes(q) ||
+             clienteTelefono.includes(q) ||
+             clienteEmail.includes(q) ||
+             localNombre.includes(q) ||
+             comercialNombre.includes(q) ||
+             fechaEvento.includes(q) ||
+             titulo.includes(q);
+    });
+  };
+
   const getEventosFiltrados = (estadoId) => {
     let eventos = kanban[estadoId] || [];
 
     // Aplicar filtros globales
     eventos = aplicarFiltros(eventos);
 
-    // Aplicar filtro de columna (búsqueda de texto)
-    const filtroTexto = filtrosColumna[estadoId]?.toLowerCase() || '';
-    if (filtroTexto) {
-      eventos = eventos.filter(e => {
-        const clienteNombre = e.cliente?.nombre?.toLowerCase() || '';
-        const clienteTelefono = e.cliente?.telefono?.toLowerCase() || '';
-        const clienteEmail = e.cliente?.email?.toLowerCase() || '';
-        const localNombre = e.local?.nombre?.toLowerCase() || '';
-        const fechaEvento = e.fecha_evento || '';
-        const titulo = e.titulo_display?.toLowerCase() || '';
+    // Aplicar búsqueda del header
+    eventos = filtrarPorTexto(eventos, busquedaGlobal);
 
-        return clienteNombre.includes(filtroTexto) ||
-               clienteTelefono.includes(filtroTexto) ||
-               clienteEmail.includes(filtroTexto) ||
-               localNombre.includes(filtroTexto) ||
-               fechaEvento.includes(filtroTexto) ||
-               titulo.includes(filtroTexto);
-      });
-    }
+    // Aplicar filtro de columna (búsqueda de texto por columna)
+    eventos = filtrarPorTexto(eventos, filtrosColumna[estadoId]);
 
     // Ordenar: por defecto antiguos primero (asc), toggle para recientes primero (desc)
     const orden = ordenColumna[estadoId] || 'asc';
@@ -265,27 +280,11 @@ export default function Kanban() {
     // Aplicar filtros globales
     eventos = aplicarFiltros(eventos);
 
-    // Aplicar búsqueda de texto
-    if (busquedaLista) {
-      const busqueda = busquedaLista.toLowerCase();
-      eventos = eventos.filter(e => {
-        const clienteNombre = e.cliente?.nombre?.toLowerCase() || '';
-        const clienteTelefono = e.cliente?.telefono?.toLowerCase() || '';
-        const clienteEmail = e.cliente?.email?.toLowerCase() || '';
-        const localNombre = e.local?.nombre?.toLowerCase() || '';
-        const comercialNombre = e.comercial?.nombre?.toLowerCase() || '';
-        const estado = e.estado?.toLowerCase() || '';
-        const titulo = e.titulo_display?.toLowerCase() || '';
+    // Aplicar búsqueda del header
+    eventos = filtrarPorTexto(eventos, busquedaGlobal);
 
-        return clienteNombre.includes(busqueda) ||
-               clienteTelefono.includes(busqueda) ||
-               clienteEmail.includes(busqueda) ||
-               localNombre.includes(busqueda) ||
-               comercialNombre.includes(busqueda) ||
-               estado.includes(busqueda) ||
-               titulo.includes(busqueda);
-      });
-    }
+    // Aplicar búsqueda de texto de la vista lista
+    eventos = filtrarPorTexto(eventos, busquedaLista);
 
     // Ordenar
     eventos.sort((a, b) => {
@@ -380,6 +379,25 @@ export default function Kanban() {
   const handleNuevoEvento = () => {
     cargarEventos();
     setShowNuevoModal(false);
+  };
+
+  const handleConfirmarEliminacion = async () => {
+    if (!eventoAEliminar || motivoEliminacion.trim().length < 5) return;
+    setGuardandoEliminacion(true);
+    try {
+      await eventosApi.actualizar(eventoAEliminar.id, {
+        estado: 'ELIMINADO',
+        motivo_eliminacion: motivoEliminacion.trim()
+      });
+      setEventoAEliminar(null);
+      setMotivoEliminacion('');
+      cargarEventos();
+    } catch (error) {
+      console.error('Error eliminando evento:', error);
+      alert(error.response?.data?.error || 'Error al eliminar evento');
+    } finally {
+      setGuardandoEliminacion(false);
+    }
   };
 
   // Función para descargar CSV
@@ -702,6 +720,7 @@ export default function Kanban() {
                     onClick={() => handleEventoClick(evento)}
                     onPrecheckClick={() => handleEventoClick(evento, 'precheck')}
                     onEtiquetaChange={cargarEventos}
+                    onEliminar={() => setEventoAEliminar(evento)}
                   />
                 ))}
               </div>
@@ -867,6 +886,57 @@ export default function Kanban() {
           onClose={() => setShowNuevoModal(false)}
           onCreated={handleNuevoEvento}
         />
+      )}
+
+      {/* Modal de Eliminación */}
+      {eventoAEliminar && (
+        <div className="modal-overlay" onClick={() => { if (!guardandoEliminacion) { setEventoAEliminar(null); setMotivoEliminacion(''); } }}>
+          <div className="modal-content modal-small modal-eliminar" onClick={(e) => e.stopPropagation()}>
+            <div className="eliminar-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="44" height="44">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </div>
+
+            <h3>Eliminar evento</h3>
+
+            <p className="eliminar-message">
+              Vas a eliminar el evento de <strong>{eventoAEliminar.cliente?.nombre || 'cliente'}</strong>. Describe el motivo de la eliminacion.
+            </p>
+
+            <textarea
+              className="eliminar-textarea"
+              value={motivoEliminacion}
+              onChange={(e) => setMotivoEliminacion(e.target.value)}
+              placeholder="Ej: Evento duplicado, spam, consulta invalida..."
+              maxLength={2000}
+              autoFocus
+            />
+            {motivoEliminacion.trim().length > 0 && motivoEliminacion.trim().length < 5 && (
+              <span className="eliminar-hint">Minimo 5 caracteres</span>
+            )}
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => { setEventoAEliminar(null); setMotivoEliminacion(''); }}
+                disabled={guardandoEliminacion}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-eliminar-confirm"
+                onClick={handleConfirmarEliminacion}
+                disabled={motivoEliminacion.trim().length < 5 || guardandoEliminacion}
+              >
+                {guardandoEliminacion ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

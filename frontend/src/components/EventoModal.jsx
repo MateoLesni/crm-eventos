@@ -48,6 +48,10 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
   const [motivoRechazo, setMotivoRechazo] = useState('');
   const [guardandoRechazo, setGuardandoRechazo] = useState(false);
 
+  // Estados para modal de revertir estado
+  const [showRevertir, setShowRevertir] = useState(false);
+  const [guardandoRevertir, setGuardandoRevertir] = useState(false);
+
   useEffect(() => {
     cargarDatos();
   }, [evento.id]);
@@ -251,14 +255,29 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
     }
   };
 
-  const handleRevertirEstado = async () => {
+  // Calcula el estado destino al revertir (replica la lógica del backend)
+  const calcularEstadoDestino = () => {
+    if (!eventoDetalle) return 'COTIZADO';
+    const comercial = eventoDetalle.comercial;
+    if (!comercial?.id) return 'CONSULTA_ENTRANTE';
+    if (comercial.email === 'reservasmultiples@opgroup.com.ar') return 'MULTIRESERVA';
+    if (eventoDetalle.presupuesto) return 'COTIZADO';
+    if (eventoDetalle.horario_inicio || eventoDetalle.horario_fin) return 'CONTACTADO';
+    return 'ASIGNADO';
+  };
+
+  const handleConfirmarRevertir = async () => {
+    setGuardandoRevertir(true);
     try {
       await eventosApi.actualizar(evento.id, { estado: 'REVERTIR_ESTADO' });
+      setShowRevertir(false);
       cargarDatos();
       onUpdated();
     } catch (error) {
       console.error('Error revirtiendo estado:', error);
       alert(error.response?.data?.error || 'Error al revertir estado');
+    } finally {
+      setGuardandoRevertir(false);
     }
   };
 
@@ -562,7 +581,7 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                     <div className="estado-revertir-btns">
                       <button
                         className="btn-revertir"
-                        onClick={handleRevertirEstado}
+                        onClick={() => setShowRevertir(true)}
                       >
                         Revertir estado
                       </button>
@@ -572,16 +591,12 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                   {/* Botones de reversión - para APROBADO */}
                   {eventoDetalle?.estado === 'APROBADO' && (
                     <div className="estado-revertir-btns">
-                      {tienePrecheck ? (
-                        <span className="revertir-bloqueado">No se puede revertir (tiene pre-check)</span>
-                      ) : (
-                        <button
-                          className="btn-revertir"
-                          onClick={handleRevertirEstado}
-                        >
-                          Revertir estado
-                        </button>
-                      )}
+                      <button
+                        className="btn-revertir"
+                        onClick={() => setShowRevertir(true)}
+                      >
+                        Revertir estado
+                      </button>
                     </div>
                   )}
                 </section>
@@ -992,6 +1007,51 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                 disabled={guardandoEdicion}
               >
                 {guardandoEdicion ? 'Guardando...' : 'Sí, continuar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Revertir Estado */}
+      {showRevertir && (
+        <div className="modal-overlay" onClick={() => { if (!guardandoRevertir) setShowRevertir(false); }}>
+          <div className="modal-content modal-small modal-revertir" onClick={(e) => e.stopPropagation()}>
+            <div className="revertir-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="44" height="44">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+            </div>
+
+            <h3>Revertir estado</h3>
+
+            <p className="revertir-message">
+              ¿Seguro que quieres revertir el estado de <strong>{eventoDetalle?.estado}</strong> a <strong>{calcularEstadoDestino()}</strong> en este evento?
+            </p>
+
+            {tienePrecheck && (
+              <div className="revertir-precheck-warning">
+                Este evento tiene un pre-check cargado. Al revertir se eliminarán los conceptos y adicionales del pre-check. Los pagos se conservan.
+              </div>
+            )}
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowRevertir(false)}
+                disabled={guardandoRevertir}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-revertir-confirm"
+                onClick={handleConfirmarRevertir}
+                disabled={guardandoRevertir}
+              >
+                {guardandoRevertir ? 'Revirtiendo...' : 'Confirmar'}
               </button>
             </div>
           </div>
