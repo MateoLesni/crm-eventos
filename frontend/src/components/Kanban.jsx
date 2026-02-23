@@ -104,6 +104,8 @@ export default function Kanban({ busquedaGlobal = '' }) {
     loadFromStorage(STORAGE_KEYS.FILTROS_GLOBALES, {
       fechaDesde: '',
       fechaHasta: '',
+      creadoDesde: '',
+      creadoHasta: '',
       local_id: '',
       tipo: '',
       presupuestoMin: '',
@@ -185,6 +187,12 @@ export default function Kanban({ busquedaGlobal = '' }) {
     }
     if (filtrosGlobales.fechaHasta) {
       resultado = resultado.filter(e => e.fecha_evento <= filtrosGlobales.fechaHasta);
+    }
+    if (filtrosGlobales.creadoDesde) {
+      resultado = resultado.filter(e => e.created_at && e.created_at.slice(0, 10) >= filtrosGlobales.creadoDesde);
+    }
+    if (filtrosGlobales.creadoHasta) {
+      resultado = resultado.filter(e => e.created_at && e.created_at.slice(0, 10) <= filtrosGlobales.creadoHasta);
     }
     if (filtrosGlobales.local_id) {
       resultado = resultado.filter(e => e.local?.id === parseInt(filtrosGlobales.local_id));
@@ -352,6 +360,8 @@ export default function Kanban({ busquedaGlobal = '' }) {
     setFiltrosGlobales({
       fechaDesde: '',
       fechaHasta: '',
+      creadoDesde: '',
+      creadoHasta: '',
       local_id: '',
       tipo: '',
       presupuestoMin: '',
@@ -558,6 +568,24 @@ export default function Kanban({ busquedaGlobal = '' }) {
                 onChange={(e) => setFiltrosGlobales({...filtrosGlobales, fechaHasta: e.target.value})}
               />
             </div>
+            <div className="filtro-separator" />
+            <div className="filtro-group">
+              <label>Creado desde</label>
+              <input
+                type="date"
+                value={filtrosGlobales.creadoDesde}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, creadoDesde: e.target.value})}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>Creado hasta</label>
+              <input
+                type="date"
+                value={filtrosGlobales.creadoHasta}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, creadoHasta: e.target.value})}
+              />
+            </div>
+            <div className="filtro-separator" />
             <div className="filtro-group">
               <label>Local</label>
               <select

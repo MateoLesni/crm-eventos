@@ -239,6 +239,13 @@
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
 
+.filtro-separator {
+  width: 1px;
+  background: #e5e7eb;
+  align-self: stretch;
+  margin: 0 2px;
+}
+
 .btn-limpiar-filtros {
   padding: 6px 12px;
   background: transparent;
