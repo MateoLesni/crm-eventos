@@ -5,6 +5,7 @@ Tablas: precheck_conceptos, precheck_adicionales, precheck_pagos
 from app import db
 from datetime import datetime
 from decimal import Decimal
+from app.utils.timezone import ahora_argentina
 
 
 # Categorías disponibles para conceptos y adicionales
@@ -40,8 +41,8 @@ class PrecheckConcepto(db.Model):
     descripcion = db.Column(db.String(255), nullable=False)
     cantidad = db.Column(db.Numeric(10, 2), nullable=False, default=1)
     precio_unitario = db.Column(db.Numeric(12, 2), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
+    updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
     # Relación con evento
     evento = db.relationship('Evento', backref=db.backref('precheck_conceptos', lazy='dynamic', cascade='all, delete-orphan'))
@@ -78,8 +79,8 @@ class PrecheckAdicional(db.Model):
     categoria_otro = db.Column(db.String(100), nullable=True)  # Si categoria='Otros'
     descripcion = db.Column(db.String(255), nullable=False)
     monto = db.Column(db.Numeric(12, 2), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
+    updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
     # Relación con evento
     evento = db.relationship('Evento', backref=db.backref('precheck_adicionales', lazy='dynamic', cascade='all, delete-orphan'))
@@ -112,8 +113,8 @@ class PrecheckPago(db.Model):
     comprobante_url = db.Column(db.String(500), nullable=True)  # URL en GCP bucket
     comprobante_nombre = db.Column(db.String(255), nullable=True)  # Nombre original del archivo
     notas = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
+    updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
     # Relación con evento
     evento = db.relationship('Evento', backref=db.backref('precheck_pagos', lazy='dynamic', cascade='all, delete-orphan'))

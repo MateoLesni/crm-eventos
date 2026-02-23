@@ -2,51 +2,71 @@ import { useState, useEffect, useRef } from 'react';
 import { whatsappApi } from '../services/api';
 import './WhatsAppChat.css';
 
-export default function WhatsAppChat({ telefono, nombreCliente, onClose, embedded = false }) {
+export default function WhatsAppChat({
+  telefono, nombreCliente, onClose, embedded = false,
+  vendedorId, isAdmin
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [conversacion, setConversacion] = useState(null);
+  const [conversaciones, setConversaciones] = useState([]);
   const [mensajes, setMensajes] = useState([]);
   const [noEncontrado, setNoEncontrado] = useState(false);
   const chatContainerRef = useRef(null);
 
   useEffect(() => {
-    cargarConversacion();
+    if (telefono) cargarConversacion();
   }, [telefono]);
 
   useEffect(() => {
-    // Scroll al final cuando se cargan los mensajes
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [mensajes]);
 
-  const cargarConversacion = async () => {
+  const cargarConversacion = async (conversacionId = null) => {
     try {
       setLoading(true);
       setError(null);
       setNoEncontrado(false);
 
-      const response = await whatsappApi.obtenerConversacionPorNumero(telefono);
+      const params = {};
+      // Comerciales solo ven su propia conversacion
+      if (!isAdmin && vendedorId) {
+        params.usuario_id = vendedorId;
+      }
+      if (conversacionId) {
+        params.conversacion_id = conversacionId;
+      }
+
+      const response = await whatsappApi.obtenerConversacionPorNumero(telefono, params);
       const data = response.data;
 
       if (!data.found) {
         setNoEncontrado(true);
         setMensajes([]);
         setConversacion(null);
+        setConversaciones([]);
       } else {
         setConversacion(data.conversacion);
+        setConversaciones(data.conversaciones_disponibles || []);
         setMensajes(data.mensajes || []);
       }
     } catch (err) {
-      console.error('Error cargando conversación:', err);
+      console.error('Error cargando conversacion:', err);
       if (err.response?.status === 404 || err.response?.data?.found === false) {
         setNoEncontrado(true);
       } else {
-        setError('Error al cargar la conversación');
+        setError('Error al cargar la conversacion');
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cambiarConversacion = (conv) => {
+    if (conv.id !== conversacion?.id) {
+      cargarConversacion(conv.id);
     }
   };
 
@@ -108,11 +128,85 @@ export default function WhatsAppChat({ telefono, nombreCliente, onClose, embedde
     return grupos;
   };
 
-  // Si es embedded, renderizar sin overlay
+  const renderSelectorVendedor = () => {
+    if (!isAdmin || conversaciones.length <= 1) return null;
+
+    return (
+      <div className="wa-vendedor-selector">
+        {conversaciones.map(c => (
+          <button
+            key={c.id}
+            className={`wa-vendedor-tab ${c.id === conversacion?.id ? 'active' : ''}`}
+            onClick={() => cambiarConversacion(c)}
+          >
+            {c.vendedor_nombre || 'Sin asignar'}
+            <span className="wa-msg-count">{c.total_mensajes}</span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const renderChatBody = () => (
+    <div className="whatsapp-chat-body" ref={chatContainerRef}>
+      {loading && (
+        <div className="chat-loading">
+          <div className="spinner"></div>
+          <p>Cargando conversacion...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="chat-error">
+          <p>{error}</p>
+          <button onClick={() => cargarConversacion()}>Reintentar</button>
+        </div>
+      )}
+
+      {noEncontrado && !loading && (
+        <div className="chat-no-encontrado">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+          </svg>
+          <p>No se encontro conversacion de WhatsApp</p>
+          <span>No hay mensajes registrados para el numero {telefono}</span>
+        </div>
+      )}
+
+      {!loading && !error && !noEncontrado && mensajes.length > 0 && (
+        <div className="mensajes-container">
+          {Object.entries(agruparMensajesPorFecha(mensajes)).map(([fecha, msgs]) => (
+            <div key={fecha} className="mensajes-grupo">
+              <div className="fecha-separador">
+                <span>{fecha}</span>
+              </div>
+              {msgs.map(renderMensaje)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderFooter = () => {
+    if (!conversacion) return null;
+
+    return (
+      <div className="whatsapp-chat-footer">
+        <span>
+          {conversacion.total_mensajes} mensajes
+          {conversacion.vendedor_nombre ? ` — ${conversacion.vendedor_nombre}` : ''}
+        </span>
+        <span className="solo-lectura">
+          Solo lectura
+        </span>
+      </div>
+    );
+  };
+
   if (embedded) {
     return (
       <div className="whatsapp-chat-embedded">
-        {/* Header simplificado para embedded */}
         <div className="whatsapp-chat-header embedded">
           <div className="header-info">
             <div className="avatar">
@@ -125,59 +219,17 @@ export default function WhatsAppChat({ telefono, nombreCliente, onClose, embedde
               <span className="telefono">{telefono}</span>
             </div>
           </div>
+          <button className="wa-refresh-btn" onClick={() => cargarConversacion()} title="Refrescar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+          </button>
         </div>
 
-        {/* Chat Body */}
-        <div className="whatsapp-chat-body" ref={chatContainerRef}>
-          {loading && (
-            <div className="chat-loading">
-              <div className="spinner"></div>
-              <p>Cargando conversacion...</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="chat-error">
-              <p>{error}</p>
-              <button onClick={cargarConversacion}>Reintentar</button>
-            </div>
-          )}
-
-          {noEncontrado && !loading && (
-            <div className="chat-no-encontrado">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-              </svg>
-              <p>No se encontro conversacion de WhatsApp</p>
-              <span>No hay mensajes registrados para el numero {telefono}</span>
-            </div>
-          )}
-
-          {!loading && !error && !noEncontrado && mensajes.length > 0 && (
-            <div className="mensajes-container">
-              {Object.entries(agruparMensajesPorFecha(mensajes)).map(([fecha, msgs]) => (
-                <div key={fecha} className="mensajes-grupo">
-                  <div className="fecha-separador">
-                    <span>{fecha}</span>
-                  </div>
-                  {msgs.map(renderMensaje)}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer info */}
-        {conversacion && (
-          <div className="whatsapp-chat-footer">
-            <span>
-              {conversacion.total_mensajes} mensajes en esta conversacion
-            </span>
-            <span className="solo-lectura">
-              Solo lectura - Los mensajes se sincronizan desde WhatsApp
-            </span>
-          </div>
-        )}
+        {renderSelectorVendedor()}
+        {renderChatBody()}
+        {renderFooter()}
       </div>
     );
   }
@@ -185,7 +237,6 @@ export default function WhatsAppChat({ telefono, nombreCliente, onClose, embedde
   return (
     <div className="whatsapp-chat-overlay" onClick={onClose}>
       <div className="whatsapp-chat-container" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <div className="whatsapp-chat-header">
           <div className="header-info">
             <div className="avatar">
@@ -206,57 +257,9 @@ export default function WhatsAppChat({ telefono, nombreCliente, onClose, embedde
           </button>
         </div>
 
-        {/* Chat Body */}
-        <div className="whatsapp-chat-body" ref={chatContainerRef}>
-          {loading && (
-            <div className="chat-loading">
-              <div className="spinner"></div>
-              <p>Cargando conversación...</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="chat-error">
-              <p>{error}</p>
-              <button onClick={cargarConversacion}>Reintentar</button>
-            </div>
-          )}
-
-          {noEncontrado && !loading && (
-            <div className="chat-no-encontrado">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-              </svg>
-              <p>No se encontró conversación de WhatsApp</p>
-              <span>No hay mensajes registrados para el número {telefono}</span>
-            </div>
-          )}
-
-          {!loading && !error && !noEncontrado && mensajes.length > 0 && (
-            <div className="mensajes-container">
-              {Object.entries(agruparMensajesPorFecha(mensajes)).map(([fecha, msgs]) => (
-                <div key={fecha} className="mensajes-grupo">
-                  <div className="fecha-separador">
-                    <span>{fecha}</span>
-                  </div>
-                  {msgs.map(renderMensaje)}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer info */}
-        {conversacion && (
-          <div className="whatsapp-chat-footer">
-            <span>
-              {conversacion.total_mensajes} mensajes en esta conversación
-            </span>
-            <span className="solo-lectura">
-              Solo lectura - Los mensajes se sincronizan desde WhatsApp
-            </span>
-          </div>
-        )}
+        {renderSelectorVendedor()}
+        {renderChatBody()}
+        {renderFooter()}
       </div>
     </div>
   );

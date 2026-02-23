@@ -5,6 +5,7 @@ from app.routes.auth import get_current_user_from_token
 from sqlalchemy.orm import joinedload
 from sqlalchemy import text
 from datetime import datetime
+from app.utils.timezone import ahora_argentina, hoy_argentina
 
 
 def registrar_transicion(evento, estado_anterior, estado_nuevo, usuario_id=None, origen='manual'):
@@ -498,7 +499,7 @@ def actualizar_evento(id):
 
             # Si es APROBADO y la fecha del evento ya pasó, marcar como CONCLUIDO directamente
             if nuevo_estado == 'APROBADO' and evento.fecha_evento:
-                hoy = datetime.utcnow().date()
+                hoy = ahora_argentina().date()
                 if evento.fecha_evento < hoy:
                     nuevo_estado = 'CONCLUIDO'
 
@@ -732,8 +733,8 @@ def asignar_por_respuesta():
         mail=mail_comercial,
         nombre_comercial=comercial.nombre,
         mensaje=mensaje_respuesta[:1000] if mensaje_respuesta else None,
-        fecha_respuesta=datetime.strptime(fecha_resp, '%Y-%m-%d').date() if fecha_resp else datetime.utcnow().date(),
-        hora_respuesta=datetime.strptime(hora_resp, '%H:%M:%S').time() if hora_resp else datetime.utcnow().time()
+        fecha_respuesta=datetime.strptime(fecha_resp, '%Y-%m-%d').date() if fecha_resp else ahora_argentina().date(),
+        hora_respuesta=datetime.strptime(hora_resp, '%H:%M:%S').time() if hora_resp else ahora_argentina().time()
     )
     db.session.add(respuesta_mail)
 
@@ -806,7 +807,7 @@ def migrar_evento():
     else:
         # Generar teléfono único si no viene
         if not telefono:
-            telefono = f"migrado_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
+            telefono = f"migrado_{ahora_argentina().strftime('%Y%m%d%H%M%S%f')}"
 
         cliente = Cliente(
             telefono=telefono,
@@ -975,7 +976,7 @@ def obtener_transiciones(id):
             duracion_segundos = (siguiente.created_at - trans.created_at).total_seconds()
         else:
             # Último estado: duración hasta ahora
-            duracion_segundos = (datetime.utcnow() - trans.created_at).total_seconds()
+            duracion_segundos = (ahora_argentina() - trans.created_at).total_seconds()
 
         trans_dict['duracion_segundos'] = duracion_segundos
         trans_dict['duracion_legible'] = formatear_duracion(duracion_segundos)
@@ -1038,7 +1039,7 @@ def concluir_eventos_finalizados():
     cron_key = request.args.get('key') or request.headers.get('X-Cron-Key')
     # Puedes validar contra una variable de entorno si lo necesitas
 
-    hoy = datetime.utcnow().date()
+    hoy = ahora_argentina().date()
 
     # Buscar eventos APROBADOS con fecha_evento anterior a hoy
     eventos_a_concluir = Evento.query.filter(

@@ -6,6 +6,7 @@ from sqlalchemy import func, case, and_, or_, extract
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 from decimal import Decimal
+from app.utils.timezone import hoy_argentina
 
 reportes_bp = Blueprint('reportes', __name__)
 
@@ -18,39 +19,45 @@ def obtener_reportes():
     Query params:
     - fecha_desde: YYYY-MM-DD (default: 30 días atrás)
     - fecha_hasta: YYYY-MM-DD (default: hoy)
+    - tipo_fecha: 'creacion' o 'evento' (default: creacion)
     - agrupacion: 'diario' o 'semanal' (default: diario)
     """
     # Parsear fechas
     fecha_hasta_str = request.args.get('fecha_hasta')
     fecha_desde_str = request.args.get('fecha_desde')
+    tipo_fecha = request.args.get('tipo_fecha', 'creacion')
     agrupacion = request.args.get('agrupacion', 'diario')
 
     if fecha_hasta_str:
         fecha_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d').date()
     else:
-        fecha_hasta = datetime.utcnow().date()
+        fecha_hasta = hoy_argentina()
 
     if fecha_desde_str:
         fecha_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d').date()
     else:
         fecha_desde = fecha_hasta - timedelta(days=30)
 
+    # Determinar campo de fecha a usar
+    campo_fecha = Evento.fecha_evento if tipo_fecha == 'evento' else Evento.created_at
+
     # === KPIs ===
-    kpis = calcular_kpis(fecha_desde, fecha_hasta)
+    kpis = calcular_kpis(fecha_desde, fecha_hasta, campo_fecha)
 
     # === VOLUMEN POR PERÍODO ===
-    volumen_periodo = calcular_volumen_periodo(fecha_desde, fecha_hasta, agrupacion)
+    volumen_periodo = calcular_volumen_periodo(fecha_desde, fecha_hasta, agrupacion, campo_fecha)
 
     # === CANALES x LOCAL ===
-    canales_local = calcular_canales_local(fecha_desde, fecha_hasta)
+    canales_local = calcular_canales_local(fecha_desde, fecha_hasta, campo_fecha)
 
     # === COMERCIALES ===
-    comerciales = calcular_comerciales(fecha_desde, fecha_hasta)
+    comerciales = calcular_comerciales(fecha_desde, fecha_hasta, campo_fecha)
 
     return jsonify({
         'filtros': {
             'fecha_desde': fecha_desde.isoformat(),
             'fecha_hasta': fecha_hasta.isoformat(),
+            'tipo_fecha': tipo_fecha,
             'agrupacion': agrupacion
         },
         'kpis': kpis,
@@ -60,7 +67,7 @@ def obtener_reportes():
     })
 
 
-def calcular_kpis(fecha_desde, fecha_hasta):
+def calcular_kpis(fecha_desde, fecha_hasta, campo_fecha=None):
     """
     Calcula los KPIs separados en dos categorías:
 
@@ -69,13 +76,16 @@ def calcular_kpis(fecha_desde, fecha_hasta):
        - cotizados_abiertos: Eventos en estado COTIZADO esperando respuesta
        - monto_en_negociacion: Suma de presupuestos de eventos COTIZADO
 
-    2. EN EL PERÍODO (filtrados por fecha - SÍ cambian con filtro):
-       - solicitudes: Eventos creados en el período
-       - cerrados: Eventos que pasaron a APROBADO en el período
-       - perdidos: Eventos que pasaron a RECHAZADO en el período
-       - monto_cerrado: Suma de presupuestos de eventos cerrados en el período
+    2. EN EL PERÍODO (filtrados por campo_fecha):
+       - solicitudes: Eventos en el período (excluye eliminados)
+       - cerrados: Eventos en estado APROBADO o CONCLUIDO en el período
+       - perdidos: Eventos en estado RECHAZADO en el período
+       - monto_cerrado: Suma precheck (conceptos+adicionales+IVA) de cerrados;
+         fallback a presupuesto si no tiene precheck
        - tasa_cierre: cerrados / (cerrados + perdidos)
     """
+    if campo_fecha is None:
+        campo_fecha = Evento.created_at
 
     # ==========================================
     # ESTADO ACTUAL (foto instantánea)
@@ -103,40 +113,55 @@ def calcular_kpis(fecha_desde, fecha_hasta):
     # EN EL PERÍODO (filtrado por fechas)
     # ==========================================
 
-    # Solicitudes creadas en el período
-    solicitudes = Evento.query.filter(
-        func.date(Evento.created_at) >= fecha_desde,
-        func.date(Evento.created_at) <= fecha_hasta
+    # Filtro base: eventos en el rango de fechas seleccionado (excluye ELIMINADOS)
+    filtro_periodo = and_(
+        func.date(campo_fecha) >= fecha_desde,
+        func.date(campo_fecha) <= fecha_hasta,
+        Evento.estado != 'ELIMINADO'
+    )
+
+    # Solicitudes en el período
+    solicitudes = Evento.query.filter(filtro_periodo).count()
+
+    # Cerrados: eventos en estado APROBADO o CONCLUIDO dentro del período
+    cerrados = Evento.query.filter(
+        filtro_periodo,
+        Evento.estado.in_(['APROBADO', 'CONCLUIDO'])
     ).count()
 
-    # Cerrados en el período: eventos que TRANSITARON a APROBADO en el período
-    # Usamos la tabla de transiciones para saber CUÁNDO pasó a aprobado
-    cerrados = db.session.query(EventoTransicion).filter(
-        EventoTransicion.estado_nuevo == 'APROBADO',
-        func.date(EventoTransicion.created_at) >= fecha_desde,
-        func.date(EventoTransicion.created_at) <= fecha_hasta
+    # Perdidos: eventos en estado RECHAZADO dentro del período
+    perdidos = Evento.query.filter(
+        filtro_periodo,
+        Evento.estado == 'RECHAZADO'
     ).count()
 
-    # Perdidos en el período: eventos que TRANSITARON a RECHAZADO en el período
-    perdidos = db.session.query(EventoTransicion).filter(
-        EventoTransicion.estado_nuevo == 'RECHAZADO',
-        func.date(EventoTransicion.created_at) >= fecha_desde,
-        func.date(EventoTransicion.created_at) <= fecha_hasta
-    ).count()
+    # Facturación cerrada: suma de precheck (conceptos + adicionales + IVA) para
+    # eventos APROBADOS/CONCLUIDOS. Si no tienen precheck, usar presupuesto cotizado.
+    eventos_cerrados = Evento.query.filter(
+        filtro_periodo,
+        Evento.estado.in_(['APROBADO', 'CONCLUIDO'])
+    ).all()
 
-    # Monto cerrado: suma de presupuestos de eventos cerrados EN EL PERÍODO
-    # Obtenemos los IDs de eventos que pasaron a APROBADO en el período
-    eventos_cerrados_ids = db.session.query(EventoTransicion.evento_id).filter(
-        EventoTransicion.estado_nuevo == 'APROBADO',
-        func.date(EventoTransicion.created_at) >= fecha_desde,
-        func.date(EventoTransicion.created_at) <= fecha_hasta
-    ).distinct().subquery()
+    monto_cerrado = Decimal('0')
+    for evento in eventos_cerrados:
+        # Calcular total precheck
+        total_conceptos = db.session.query(
+            func.sum(PrecheckConcepto.cantidad * PrecheckConcepto.precio_unitario)
+        ).filter(PrecheckConcepto.evento_id == evento.id).scalar() or Decimal('0')
 
-    monto_cerrado = db.session.query(
-        func.sum(Evento.presupuesto)
-    ).filter(
-        Evento.id.in_(eventos_cerrados_ids)
-    ).scalar() or 0
+        total_adicionales = db.session.query(
+            func.sum(PrecheckAdicional.monto)
+        ).filter(PrecheckAdicional.evento_id == evento.id).scalar() or Decimal('0')
+
+        subtotal_precheck = Decimal(str(total_conceptos)) + Decimal(str(total_adicionales))
+
+        if subtotal_precheck > 0:
+            # Tiene precheck: usar total precheck + IVA si facturada
+            iva = subtotal_precheck * Decimal('0.21') if evento.facturada else Decimal('0')
+            monto_cerrado += subtotal_precheck + iva
+        elif evento.presupuesto:
+            # Sin precheck: fallback al presupuesto cotizado
+            monto_cerrado += Decimal(str(evento.presupuesto))
 
     # Tasa de cierre
     total_finalizados = cerrados + perdidos
@@ -160,17 +185,19 @@ def calcular_kpis(fecha_desde, fecha_hasta):
     }
 
 
-def calcular_volumen_periodo(fecha_desde, fecha_hasta, agrupacion):
+def calcular_volumen_periodo(fecha_desde, fecha_hasta, agrupacion, campo_fecha=None):
     """Calcula el volumen de eventos por período (diario o semanal)"""
+    if campo_fecha is None:
+        campo_fecha = Evento.created_at
 
     if agrupacion == 'semanal':
         # Agrupar por semana (lunes)
-        date_trunc = func.date(Evento.created_at - func.strftime('%w', Evento.created_at) + 1)
+        date_trunc = func.date(campo_fecha - func.strftime('%w', campo_fecha) + 1)
     else:
         # Agrupar por día
-        date_trunc = func.date(Evento.created_at)
+        date_trunc = func.date(campo_fecha)
 
-    # Query con conteo por estado
+    # Query con conteo por estado (excluye ELIMINADOS)
     query = db.session.query(
         date_trunc.label('fecha'),
         func.count(Evento.id).label('total'),
@@ -178,11 +205,12 @@ def calcular_volumen_periodo(fecha_desde, fecha_hasta, agrupacion):
         func.sum(case((Evento.estado == 'ASIGNADO', 1), else_=0)).label('asignado'),
         func.sum(case((Evento.estado == 'CONTACTADO', 1), else_=0)).label('contactado'),
         func.sum(case((Evento.estado == 'COTIZADO', 1), else_=0)).label('cotizado'),
-        func.sum(case((Evento.estado == 'APROBADO', 1), else_=0)).label('aprobado'),
+        func.sum(case((Evento.estado.in_(['APROBADO', 'CONCLUIDO']), 1), else_=0)).label('aprobado'),
         func.sum(case((Evento.estado == 'RECHAZADO', 1), else_=0)).label('rechazado'),
     ).filter(
-        func.date(Evento.created_at) >= fecha_desde,
-        func.date(Evento.created_at) <= fecha_hasta
+        func.date(campo_fecha) >= fecha_desde,
+        func.date(campo_fecha) <= fecha_hasta,
+        Evento.estado != 'ELIMINADO'
     ).group_by(date_trunc).order_by(date_trunc.desc()).all()
 
     # Calcular totales
@@ -220,20 +248,23 @@ def calcular_volumen_periodo(fecha_desde, fecha_hasta, agrupacion):
     }
 
 
-def calcular_canales_local(fecha_desde, fecha_hasta):
+def calcular_canales_local(fecha_desde, fecha_hasta, campo_fecha=None):
     """Calcula la distribución de canales por local"""
+    if campo_fecha is None:
+        campo_fecha = Evento.created_at
 
     # Obtener locales activos
     locales = Local.query.filter_by(activo=True).all()
 
-    # Query de canales con conteo por local
+    # Query de canales con conteo por local (excluye ELIMINADOS)
     query = db.session.query(
         Evento.canal_origen,
         Evento.local_id,
         func.count(Evento.id).label('cantidad')
     ).filter(
-        func.date(Evento.created_at) >= fecha_desde,
-        func.date(Evento.created_at) <= fecha_hasta
+        func.date(campo_fecha) >= fecha_desde,
+        func.date(campo_fecha) <= fecha_hasta,
+        Evento.estado != 'ELIMINADO'
     ).group_by(Evento.canal_origen, Evento.local_id).all()
 
     # Organizar datos
@@ -290,20 +321,23 @@ def calcular_canales_local(fecha_desde, fecha_hasta):
     }
 
 
-def calcular_comerciales(fecha_desde, fecha_hasta):
+def calcular_comerciales(fecha_desde, fecha_hasta, campo_fecha=None):
     """Calcula la carga y performance por comercial"""
+    if campo_fecha is None:
+        campo_fecha = Evento.created_at
 
     # Obtener comerciales activos
     comerciales = Usuario.query.filter_by(activo=True, rol='comercial').all()
 
-    # Query de eventos por comercial y estado
+    # Query de eventos por comercial y estado (excluye ELIMINADOS)
     query = db.session.query(
         Evento.comercial_id,
         Evento.estado,
         func.count(Evento.id).label('cantidad')
     ).filter(
-        func.date(Evento.created_at) >= fecha_desde,
-        func.date(Evento.created_at) <= fecha_hasta
+        func.date(campo_fecha) >= fecha_desde,
+        func.date(campo_fecha) <= fecha_hasta,
+        Evento.estado != 'ELIMINADO'
     ).group_by(Evento.comercial_id, Evento.estado).all()
 
     # Organizar datos
@@ -339,6 +373,14 @@ def calcular_comerciales(fecha_desde, fecha_hasta):
         estado = row.estado.lower() if row.estado else 'consulta_entrante'
         cantidad = row.cantidad or 0
 
+        # CONCLUIDO se agrupa con APROBADO
+        if estado == 'concluido':
+            estado = 'aprobado'
+
+        # Ignorar MULTIRESERVA y otros estados no mapeados
+        if estado not in ('consulta_entrante', 'asignado', 'contactado', 'cotizado', 'aprobado', 'rechazado'):
+            continue
+
         if comercial_id not in comerciales_data:
             # Comercial no activo o eliminado
             comercial = Usuario.query.get(comercial_id)
@@ -353,8 +395,7 @@ def calcular_comerciales(fecha_desde, fecha_hasta):
                 'total': 0
             }
 
-        if estado in comerciales_data[comercial_id]:
-            comerciales_data[comercial_id][estado] = cantidad
+        comerciales_data[comercial_id][estado] += cantidad
         comerciales_data[comercial_id]['total'] += cantidad
 
     # Calcular totales generales
@@ -427,7 +468,7 @@ def obtener_reportes_financieros():
     if fecha_hasta_str:
         fecha_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d').date()
     else:
-        fecha_hasta = datetime.utcnow().date()
+        fecha_hasta = hoy_argentina()
 
     if fecha_desde_str:
         fecha_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d').date()

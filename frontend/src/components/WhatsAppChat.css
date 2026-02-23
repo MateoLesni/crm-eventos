@@ -324,6 +324,70 @@
   min-height: 450px;
 }
 
+/* Vendor Selector (Admin multi-vendedor) */
+.wa-vendedor-selector {
+  display: flex;
+  background: #f0f2f5;
+  padding: 4px 8px;
+  gap: 4px;
+  border-bottom: 1px solid #e0e0e0;
+  overflow-x: auto;
+}
+
+.wa-vendedor-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  color: #54656f;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.wa-vendedor-tab:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.wa-vendedor-tab.active {
+  background: #075e54;
+  color: white;
+}
+
+.wa-msg-count {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.wa-vendedor-tab.active .wa-msg-count {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Refresh Button */
+.wa-refresh-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.wa-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .no-whatsapp {
   display: flex;
   align-items: center;

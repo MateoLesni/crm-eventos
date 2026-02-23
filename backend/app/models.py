@@ -1,6 +1,7 @@
 from app import db
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+from app.utils.timezone import ahora_argentina
 
 # Tabla de Locales
 class Local(db.Model):
@@ -22,8 +23,9 @@ class Usuario(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     rol = db.Column(db.String(20), nullable=False, default='comercial')  # admin, comercial
+    telefono = db.Column(db.String(30), nullable=True)  # Para vincular con instancia WhatsApp
     activo = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
 
     eventos_asignados = db.relationship('Evento', backref='comercial', lazy='dynamic')
     actividades = db.relationship('Actividad', backref='usuario', lazy='dynamic')
@@ -40,6 +42,7 @@ class Usuario(db.Model):
             'nombre': self.nombre,
             'email': self.email,
             'rol': self.rol,
+            'telefono': self.telefono,
             'activo': self.activo
         }
 
@@ -54,7 +57,7 @@ class Cliente(db.Model):
     empresa = db.Column(db.String(150))  # Para corporativos
     notas = db.Column(db.Text)
     comercial_preferido_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
 
     eventos = db.relationship('Evento', backref='cliente', lazy='dynamic')
     comercial_preferido = db.relationship('Usuario', foreign_keys=[comercial_preferido_id])
@@ -132,8 +135,8 @@ class Evento(db.Model):
     estado_pre_eliminacion = db.Column(db.String(30))  # Estado antes de eliminar, para restaurar
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
+    updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
     actividades = db.relationship('Actividad', backref='evento', lazy='dynamic', order_by='desc(Actividad.created_at)')
     transiciones = db.relationship('EventoTransicion', backref='evento', lazy='dynamic', order_by='EventoTransicion.created_at')
@@ -242,7 +245,7 @@ class Actividad(db.Model):
     tipo = db.Column(db.String(30), nullable=False)  # nota, llamada, mail, whatsapp, reunion, presupuesto
     contenido = db.Column(db.Text, nullable=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
 
     def to_dict(self):
         return {
@@ -264,7 +267,7 @@ class RespuestaMail(db.Model):
     mensaje = db.Column(db.Text)  # Contenido del mensaje de respuesta
     fecha_respuesta = db.Column(db.Date)
     hora_respuesta = db.Column(db.Time)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
 
     def to_dict(self):
         return {
@@ -294,7 +297,7 @@ class ConversacionMail(db.Model):
     mensaje = db.Column(db.Text)
     comercial_email = db.Column(db.String(255))  # Email del comercial que respondió (si tipo_emisor='equipo')
     comercial_nombre = db.Column(db.String(255))  # Nombre del comercial
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
 
     def to_dict(self):
         return {
@@ -324,7 +327,7 @@ class EventoTransicion(db.Model):
     estado_nuevo = db.Column(db.String(30), nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'))  # Quién hizo el cambio (NULL si sistema/n8n)
     origen = db.Column(db.String(20), default='manual')  # manual, sistema, n8n, migracion
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
 
     usuario = db.relationship('Usuario', foreign_keys=[usuario_id])
 
@@ -356,8 +359,7 @@ class EventoTransicion(db.Model):
                 duracion = (siguiente.created_at - trans.created_at).total_seconds()
             else:
                 # Último estado: duración hasta ahora
-                from datetime import datetime
-                duracion = (datetime.utcnow() - trans.created_at).total_seconds()
+                duracion = (ahora_argentina() - trans.created_at).total_seconds()
 
             estado = trans.estado_nuevo
             duraciones[estado] = duraciones.get(estado, 0) + duracion

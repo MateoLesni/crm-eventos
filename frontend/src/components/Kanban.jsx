@@ -108,6 +108,7 @@ export default function Kanban({ busquedaGlobal = '' }) {
       creadoHasta: '',
       local_id: '',
       tipo: '',
+      estado: '',
       presupuestoMin: '',
       presupuestoMax: '',
       comercial_id: '',
@@ -207,6 +208,9 @@ export default function Kanban({ busquedaGlobal = '' }) {
     if (filtrosGlobales.presupuestoMax) {
       const max = parseInt(filtrosGlobales.presupuestoMax);
       resultado = resultado.filter(e => (e.presupuesto || 0) <= max);
+    }
+    if (filtrosGlobales.estado) {
+      resultado = resultado.filter(e => e.estado === filtrosGlobales.estado);
     }
     if (filtrosGlobales.comercial_id) {
       resultado = resultado.filter(e => e.comercial?.id === parseInt(filtrosGlobales.comercial_id));
@@ -364,6 +368,7 @@ export default function Kanban({ busquedaGlobal = '' }) {
       creadoHasta: '',
       local_id: '',
       tipo: '',
+      estado: '',
       presupuestoMin: '',
       presupuestoMax: '',
       comercial_id: '',
@@ -607,6 +612,18 @@ export default function Kanban({ busquedaGlobal = '' }) {
                 <option value="">Todos</option>
                 <option value="social">Social</option>
                 <option value="corporativo">Corporativo</option>
+              </select>
+            </div>
+            <div className="filtro-group">
+              <label>Estado</label>
+              <select
+                value={filtrosGlobales.estado}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, estado: e.target.value})}
+              >
+                <option value="">Todos</option>
+                {ESTADOS.map(est => (
+                  <option key={est.id} value={est.id}>{est.nombre}</option>
+                ))}
               </select>
             </div>
             <div className="filtro-group">

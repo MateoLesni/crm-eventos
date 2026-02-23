@@ -10,6 +10,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from io import BytesIO
 from datetime import datetime
+from app.utils.timezone import ahora_argentina
 
 # Branding por local (texto por ahora, luego puede ser logo)
 BRANDING_LOCAL = {
@@ -273,7 +274,7 @@ def generar_pdf_precheck(evento, conceptos, adicionales, pagos, resumen):
 
     # Footer
     elements.append(Spacer(1, 1.5*cm))
-    fecha_generacion = datetime.now().strftime('%d/%m/%Y %H:%M')
+    fecha_generacion = ahora_argentina().strftime('%d/%m/%Y %H:%M')
     elements.append(Paragraph(
         f'Documento generado el {fecha_generacion} | {branding["nombre"]} - CRM Eventos',
         style_footer

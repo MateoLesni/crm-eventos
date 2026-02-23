@@ -33,6 +33,7 @@ export default function Reportes() {
   const [filtros, setFiltros] = useState({
     fecha_desde: hace30Dias.toISOString().split('T')[0],
     fecha_hasta: hoy.toISOString().split('T')[0],
+    tipo_fecha: 'creacion',
     agrupacion: 'diario'
   });
 
@@ -46,6 +47,7 @@ export default function Reportes() {
       const params = new URLSearchParams();
       if (filtros.fecha_desde) params.append('fecha_desde', filtros.fecha_desde);
       if (filtros.fecha_hasta) params.append('fecha_hasta', filtros.fecha_hasta);
+      params.append('tipo_fecha', filtros.tipo_fecha);
       params.append('agrupacion', filtros.agrupacion);
 
       const response = await api.get(`/reportes?${params.toString()}`);
@@ -88,7 +90,17 @@ export default function Reportes() {
         </div>
         <div className="reportes-filtros">
           <div className="filtro-grupo">
-            <label>Desde</label>
+            <label>Filtrar por</label>
+            <select
+              value={filtros.tipo_fecha}
+              onChange={(e) => setFiltros({ ...filtros, tipo_fecha: e.target.value })}
+            >
+              <option value="creacion">Fecha de creación</option>
+              <option value="evento">Fecha del evento</option>
+            </select>
+          </div>
+          <div className="filtro-grupo">
+            <label>{filtros.tipo_fecha === 'creacion' ? 'Creado desde' : 'Evento desde'}</label>
             <input
               type="date"
               value={filtros.fecha_desde}
@@ -96,7 +108,7 @@ export default function Reportes() {
             />
           </div>
           <div className="filtro-grupo">
-            <label>Hasta</label>
+            <label>{filtros.tipo_fecha === 'creacion' ? 'Creado hasta' : 'Evento hasta'}</label>
             <input
               type="date"
               value={filtros.fecha_hasta}
@@ -192,13 +204,13 @@ export default function Reportes() {
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Total</th>
                 <th>Entrante</th>
                 <th>Asignado</th>
                 <th>Contactado</th>
                 <th>Cotizado</th>
                 <th className="col-success">Aprobado</th>
                 <th className="col-danger">Rechazado</th>
-                <th>Total</th>
                 <th className="col-bar">Distribución</th>
               </tr>
             </thead>
@@ -211,13 +223,13 @@ export default function Reportes() {
                 volumen_periodo.filas.map((fila, idx) => (
                   <tr key={idx}>
                     <td className="fecha">{formatearFecha(fila.fecha)}</td>
+                    <td className="total">{fila.total}</td>
                     <td>{fila.consulta_entrante}</td>
                     <td>{fila.asignado}</td>
                     <td>{fila.contactado}</td>
                     <td>{fila.cotizado}</td>
                     <td className="success">{fila.aprobado}</td>
                     <td className="danger">{fila.rechazado}</td>
-                    <td className="total">{fila.total}</td>
                     <td className="col-bar">
                       <div className="bar-container">
                         <div
@@ -241,13 +253,13 @@ export default function Reportes() {
               <tfoot>
                 <tr className="fila-totales">
                   <td>TOTAL</td>
+                  <td className="total">{volumen_periodo.totales.total}</td>
                   <td>{volumen_periodo.totales.consulta_entrante}</td>
                   <td>{volumen_periodo.totales.asignado}</td>
                   <td>{volumen_periodo.totales.contactado}</td>
                   <td>{volumen_periodo.totales.cotizado}</td>
                   <td className="success">{volumen_periodo.totales.aprobado}</td>
                   <td className="danger">{volumen_periodo.totales.rechazado}</td>
-                  <td className="total">{volumen_periodo.totales.total}</td>
                   <td></td>
                 </tr>
               </tfoot>

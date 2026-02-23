@@ -4,6 +4,7 @@ Tablas: contactos, conversaciones, mensajes (sin prefijo wa_)
 """
 from app import db
 from datetime import datetime
+from app.utils.timezone import ahora_argentina
 
 
 class WAContacto(db.Model):
@@ -24,8 +25,8 @@ class WAContacto(db.Model):
     es_cliente = db.Column(db.Boolean, default=False)
     estado = db.Column(db.String(20), default='nuevo', index=True)
     notas = db.Column(db.Text, nullable=True)
-    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    fecha_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    fecha_creacion = db.Column(db.DateTime, default=ahora_argentina, nullable=False)
+    fecha_actualizacion = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina, nullable=False)
 
     # Relación con conversaciones
     conversaciones = db.relationship('WAConversacion', back_populates='contacto', cascade='all, delete-orphan')
@@ -60,15 +61,16 @@ class WAConversacion(db.Model):
     contacto_id = db.Column(db.Integer, db.ForeignKey('contactos.id', ondelete='CASCADE'), nullable=False, index=True)
     remote_jid = db.Column(db.String(50), nullable=False, index=True)
     instancia_nombre = db.Column(db.String(50), nullable=False, default='whatsapp_nuevo')
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True, index=True)  # Vendedor CRM vinculado
     estado = db.Column(db.String(20), default='abierta', index=True)
-    ultima_actividad = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    ultima_actividad = db.Column(db.DateTime, default=ahora_argentina, nullable=False, index=True)
     total_mensajes = db.Column(db.Integer, default=0)
     mensajes_recibidos = db.Column(db.Integer, default=0)
     mensajes_enviados = db.Column(db.Integer, default=0)
     vendedor_numero = db.Column(db.String(20), nullable=True)
     vendedor_nombre = db.Column(db.String(100), nullable=True)
-    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    fecha_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    fecha_creacion = db.Column(db.DateTime, default=ahora_argentina, nullable=False)
+    fecha_actualizacion = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina, nullable=False)
 
     # Relaciones
     contacto = db.relationship('WAContacto', back_populates='conversaciones')
@@ -81,6 +83,7 @@ class WAConversacion(db.Model):
             'contacto': self.contacto.to_dict() if self.contacto else None,
             'remote_jid': self.remote_jid,
             'instancia_nombre': self.instancia_nombre,
+            'usuario_id': self.usuario_id,
             'estado': self.estado,
             'ultima_actividad': self.ultima_actividad.isoformat() if self.ultima_actividad else None,
             'total_mensajes': self.total_mensajes,
@@ -113,7 +116,7 @@ class WAMensaje(db.Model):
     numero_remitente = db.Column(db.String(50), nullable=True)
     timestamp = db.Column(db.BigInteger, nullable=False, index=True)
     fecha_mensaje = db.Column(db.DateTime, nullable=False, index=True)
-    fecha_creacion_bd = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    fecha_creacion_bd = db.Column(db.DateTime, default=ahora_argentina, nullable=False)
     estado_lectura = db.Column(db.String(20), nullable=True)
     tiene_multimedia = db.Column(db.Boolean, default=False)
     multimedia_url = db.Column(db.String(500), nullable=True)

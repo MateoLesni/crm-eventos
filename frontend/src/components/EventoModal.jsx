@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { eventosApi, usuariosApi, clientesApi, calendarioApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import WhatsAppChat from './WhatsAppChat';
 import GmailChat from './GmailChat';
 import PreCheckTab from './PreCheckTab';
@@ -16,6 +17,7 @@ const LOCALES = [
 ];
 
 export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tabInicial = 'detalle' }) {
+  const { usuario } = useAuth();
   const [eventoDetalle, setEventoDetalle] = useState(null);
   const [actividades, setActividades] = useState([]);
   const [comerciales, setComerciales] = useState([]);
@@ -654,6 +656,8 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                   nombreCliente={eventoDetalle.cliente.nombre}
                   onClose={() => setActiveTab('detalle')}
                   embedded={true}
+                  vendedorId={eventoDetalle?.comercial?.id}
+                  isAdmin={usuario?.rol === 'admin'}
                 />
               </div>
             )}

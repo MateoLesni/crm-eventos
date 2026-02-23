@@ -66,8 +66,8 @@ export const usuariosApi = {
 const WEBHOOK_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://crm-eventos-backend-656730419070.us-central1.run.app';
 
 export const whatsappApi = {
-  obtenerConversacionPorNumero: (numero) =>
-    axios.get(`${WEBHOOK_URL}/webhook/conversacion-por-numero/${encodeURIComponent(numero)}`),
+  obtenerConversacionPorNumero: (numero, params = {}) =>
+    axios.get(`${WEBHOOK_URL}/webhook/conversacion-por-numero/${encodeURIComponent(numero)}`, { params }),
   obtenerConversacion: (conversacionId) =>
     axios.get(`${WEBHOOK_URL}/webhook/conversacion/${conversacionId}`),
   obtenerMensajes: (conversacionId, limit = 100) =>

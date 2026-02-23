@@ -3,12 +3,21 @@ Rutas para webhook de Evolution API (WhatsApp)
 Completamente separadas del CRM de eventos
 """
 from flask import Blueprint, request, jsonify
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from app import db
+from app.utils.timezone import ahora_argentina, AR_TIMEZONE
+from app.models import Usuario
 from app.models_whatsapp import WAContacto, WAConversacion, WAMensaje
 from app.utils.whatsapp_utils import normalizar_numero_argentino, whatsapp_jid_a_numero
 
 whatsapp_bp = Blueprint('whatsapp', __name__)
+
+# Mapeo instancia Evolution API -> telefono del vendedor
+INSTANCIA_TELEFONO = {
+    'vendedora_juana': '5491122905495',
+    'vendedora_delfina': '5491140504258',
+    'whatsapp_nuevo': '5491156574088',
+}
 
 
 @whatsapp_bp.route('/test', methods=['GET'])
@@ -17,7 +26,7 @@ def test_webhook():
     return jsonify({
         'status': 'ok',
         'message': 'Webhook Evolution API funcionando correctamente',
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': ahora_argentina().isoformat()
     }), 200
 
 
@@ -112,7 +121,7 @@ def webhook_evolution():
         timestamp = message_data.get('messageTimestamp', 0)
         if isinstance(timestamp, str):
             timestamp = int(timestamp)
-        fecha_mensaje = datetime.fromtimestamp(timestamp) if timestamp else datetime.utcnow()
+        fecha_mensaje = datetime.fromtimestamp(timestamp, tz=AR_TIMEZONE).replace(tzinfo=None) if timestamp else ahora_argentina()
 
         # Normalizar número
         numero = whatsapp_jid_a_numero(remote_jid)
@@ -134,10 +143,17 @@ def webhook_evolution():
             db.session.add(contacto)
             db.session.flush()
 
-        # 2. Buscar o crear conversación
+        # 2. Identificar vendedor CRM por instancia
+        telefono_vendedor = INSTANCIA_TELEFONO.get(instance)
+        usuario_crm = None
+        if telefono_vendedor:
+            usuario_crm = Usuario.query.filter_by(telefono=telefono_vendedor).first()
+
+        # 3. Buscar o crear conversación (clave: contacto + remote_jid + instancia)
         conversacion = WAConversacion.query.filter_by(
             contacto_id=contacto.id,
-            remote_jid=remote_jid
+            remote_jid=remote_jid,
+            instancia_nombre=instance
         ).first()
 
         if not conversacion:
@@ -145,19 +161,20 @@ def webhook_evolution():
                 contacto_id=contacto.id,
                 remote_jid=remote_jid,
                 instancia_nombre=instance,
-                vendedor_numero='541156574088',  # Valor por defecto, ajustar según necesidad
-                vendedor_nombre='Vendedor'
+                usuario_id=usuario_crm.id if usuario_crm else None,
+                vendedor_numero=telefono_vendedor or '',
+                vendedor_nombre=usuario_crm.nombre if usuario_crm else 'Vendedor'
             )
             db.session.add(conversacion)
             db.session.flush()
 
-        # 3. Verificar si el mensaje ya existe (evitar duplicados)
+        # 4. Verificar si el mensaje ya existe (evitar duplicados)
         mensaje_existente = WAMensaje.query.filter_by(mensaje_id=mensaje_id).first()
 
         if mensaje_existente:
             return jsonify({'status': 'duplicate', 'mensaje_id': mensaje_id}), 200
 
-        # 4. Guardar mensaje
+        # 5. Guardar mensaje
         nuevo_mensaje = WAMensaje(
             conversacion_id=conversacion.id,
             mensaje_id=mensaje_id,
@@ -174,7 +191,7 @@ def webhook_evolution():
         )
         db.session.add(nuevo_mensaje)
 
-        # 5. Actualizar contadores de conversación
+        # 6. Actualizar contadores de conversación
         if from_me:
             conversacion.mensajes_enviados = (conversacion.mensajes_enviados or 0) + 1
         else:
@@ -402,8 +419,14 @@ def buscar_por_numero(numero):
 @whatsapp_bp.route('/conversacion-por-numero/<numero>', methods=['GET'])
 def obtener_conversacion_por_numero(numero):
     """
-    Buscar conversación y mensajes por número de teléfono del cliente.
-    Este endpoint es usado desde el CRM para mostrar el chat de WhatsApp.
+    Buscar conversaciones y mensajes por numero de telefono del cliente.
+    Soporta multi-vendedor: devuelve todas las conversaciones disponibles.
+
+    Query params opcionales:
+    - usuario_id: filtrar por vendedor CRM (comerciales ven solo la suya)
+    - instancia: filtrar por instancia Evolution
+    - conversacion_id: cargar mensajes de una conversacion especifica
+    - limit: cantidad de mensajes (default 100)
     """
     try:
         numero_normalizado = normalizar_numero_argentino(numero)
@@ -411,7 +434,7 @@ def obtener_conversacion_por_numero(numero):
         if not numero_normalizado:
             return jsonify({
                 'found': False,
-                'error': 'Número inválido',
+                'error': 'Numero invalido',
                 'numero_original': numero
             }), 400
 
@@ -421,17 +444,34 @@ def obtener_conversacion_por_numero(numero):
         if not contacto:
             return jsonify({
                 'found': False,
-                'message': 'No se encontró conversación de WhatsApp para este número',
+                'message': 'No se encontro conversacion de WhatsApp para este numero',
                 'numero_original': numero,
                 'numero_normalizado': numero_normalizado
             }), 200
 
-        # Buscar conversación más reciente del contacto
-        conversacion = WAConversacion.query.filter_by(
-            contacto_id=contacto.id
-        ).order_by(WAConversacion.ultima_actividad.desc()).first()
+        # Filtros opcionales
+        usuario_id = request.args.get('usuario_id', type=int)
+        instancia = request.args.get('instancia')
+        conversacion_id = request.args.get('conversacion_id', type=int)
 
-        if not conversacion:
+        # Buscar todas las conversaciones del contacto
+        query = WAConversacion.query.filter_by(contacto_id=contacto.id)
+
+        if instancia:
+            query = query.filter_by(instancia_nombre=instancia)
+        if usuario_id:
+            query = query.filter_by(usuario_id=usuario_id)
+
+        conversaciones = query.order_by(WAConversacion.ultima_actividad.desc()).all()
+
+        # Fallback: si filtrar por usuario_id no dio resultados, buscar sin filtro
+        # Esto permite ver conversaciones legacy que no tienen usuario_id asignado
+        if not conversaciones and usuario_id:
+            conversaciones = WAConversacion.query.filter_by(
+                contacto_id=contacto.id
+            ).order_by(WAConversacion.ultima_actividad.desc()).all()
+
+        if not conversaciones:
             return jsonify({
                 'found': False,
                 'message': 'Contacto encontrado pero sin conversaciones',
@@ -440,10 +480,18 @@ def obtener_conversacion_por_numero(numero):
                 'contacto_id': contacto.id
             }), 200
 
-        # Obtener mensajes (últimos 100 por defecto)
+        # Determinar conversacion activa (la solicitada o la mas reciente)
+        conv_activa = conversaciones[0]
+        if conversacion_id:
+            for c in conversaciones:
+                if c.id == conversacion_id:
+                    conv_activa = c
+                    break
+
+        # Obtener mensajes de la conversacion activa
         limit = request.args.get('limit', 100, type=int)
         mensajes = WAMensaje.query.filter_by(
-            conversacion_id=conversacion.id
+            conversacion_id=conv_activa.id
         ).order_by(WAMensaje.timestamp.asc()).limit(limit).all()
 
         return jsonify({
@@ -456,11 +504,22 @@ def obtener_conversacion_por_numero(numero):
                 'numero': contacto.numero_normalizado
             },
             'conversacion': {
-                'id': conversacion.id,
-                'estado': conversacion.estado,
-                'total_mensajes': conversacion.total_mensajes,
-                'ultima_actividad': conversacion.ultima_actividad.isoformat() if conversacion.ultima_actividad else None
+                'id': conv_activa.id,
+                'estado': conv_activa.estado,
+                'total_mensajes': conv_activa.total_mensajes,
+                'ultima_actividad': conv_activa.ultima_actividad.isoformat() if conv_activa.ultima_actividad else None,
+                'instancia_nombre': conv_activa.instancia_nombre,
+                'vendedor_nombre': conv_activa.vendedor_nombre,
+                'usuario_id': conv_activa.usuario_id
             },
+            'conversaciones_disponibles': [{
+                'id': c.id,
+                'instancia_nombre': c.instancia_nombre,
+                'vendedor_nombre': c.vendedor_nombre,
+                'usuario_id': c.usuario_id,
+                'total_mensajes': c.total_mensajes,
+                'ultima_actividad': c.ultima_actividad.isoformat() if c.ultima_actividad else None
+            } for c in conversaciones],
             'mensajes': [{
                 'id': msg.id,
                 'texto': msg.texto,
