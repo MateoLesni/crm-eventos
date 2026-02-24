@@ -137,6 +137,7 @@ class Evento(db.Model):
     # Timestamps
     created_at = db.Column(db.DateTime, default=ahora_argentina)
     updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
+    fecha_ultimo_cambio_estado = db.Column(db.DateTime, nullable=True)  # Para cálculo rápido de SLA
 
     actividades = db.relationship('Actividad', backref='evento', lazy='dynamic', order_by='desc(Actividad.created_at)')
     transiciones = db.relationship('EventoTransicion', backref='evento', lazy='dynamic', order_by='EventoTransicion.created_at')
@@ -151,6 +152,7 @@ class Evento(db.Model):
             return False  # No hay cambio
 
         self.estado = nuevo_estado
+        self.fecha_ultimo_cambio_estado = ahora_argentina()
 
         # Limpiar etiquetas al pasar a estados finales
         if nuevo_estado in ['APROBADO', 'RECHAZADO', 'ELIMINADO']:
@@ -219,6 +221,7 @@ class Evento(db.Model):
             'thread_id': self.thread_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'fecha_ultimo_cambio_estado': self.fecha_ultimo_cambio_estado.isoformat() if self.fecha_ultimo_cambio_estado else None,
         }
 
         # Campos que requieren queries adicionales - solo para detalle

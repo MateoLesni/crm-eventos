@@ -20,6 +20,7 @@ def registrar_transicion(evento, estado_anterior, estado_nuevo, usuario_id=None,
         origen=origen
     )
     db.session.add(transicion)
+    evento.fecha_ultimo_cambio_estado = ahora_argentina()
     return transicion
 
 eventos_bp = Blueprint('eventos', __name__)
@@ -154,11 +155,17 @@ def listar_eventos():
         'CONCLUIDO': [],
     }
 
+    from app.utils.sla import calcular_sla_evento
+
     for evento in eventos:
         estado = evento.estado
         if estado in kanban:
             evento_dict = evento.to_dict()
             evento_dict['tiene_precheck'] = evento.id in eventos_con_precheck
+            # Calcular SLA solo para estados que lo requieren
+            sla = calcular_sla_evento(evento)
+            if sla and sla['status'] != 'ok':
+                evento_dict['sla_info'] = sla
             kanban[estado].append(evento_dict)
 
     # Calcular totales por columna
@@ -433,16 +440,27 @@ def actualizar_evento(id):
     estado_anterior = evento.estado
     user = get_current_user()
 
+    # Campos que deben ser None en vez de string vacío
+    campos_nullable_int = ['local_id', 'comercial_id', 'cantidad_personas', 'presupuesto']
+    campos_nullable_date = ['fecha_evento', 'fecha_presupuesto']
+    campos_nullable_time = ['horario_inicio', 'horario_fin']
+
     for campo in campos:
         if campo in data:
             valor = data[campo]
+
+            # Sanitizar strings vacíos a None para campos numéricos/fecha
+            if valor == '' or valor is None:
+                if campo in campos_nullable_int or campo in campos_nullable_date or campo in campos_nullable_time:
+                    valor = None
+
             # Convertir fechas
-            if campo == 'fecha_evento' and valor:
+            if campo in campos_nullable_date and valor:
                 valor = datetime.strptime(valor, '%Y-%m-%d').date()
-            elif campo == 'fecha_presupuesto' and valor:
-                valor = datetime.strptime(valor, '%Y-%m-%d').date()
-            elif campo in ['horario_inicio', 'horario_fin'] and valor:
+            elif campo in campos_nullable_time and valor:
                 valor = datetime.strptime(valor, '%H:%M').time()
+            elif campo in campos_nullable_int and valor is not None:
+                valor = int(valor)
 
             setattr(evento, campo, valor)
 

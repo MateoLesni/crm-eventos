@@ -48,10 +48,15 @@ def create_app():
     from app.routes.locales import locales_bp
     app.register_blueprint(locales_bp, url_prefix='/api/locales')
 
+    # Registrar blueprint de SLA (alertas y violaciones)
+    from app.routes.sla import sla_bp
+    app.register_blueprint(sla_bp, url_prefix='/api/sla')
+
     # Importar modelos para que SQLAlchemy los conozca
     from app import models  # Modelos del CRM
     from app import models_whatsapp  # Modelos de WhatsApp
     from app import models_precheck  # Modelos de Pre-Check
+    from app import models_sla  # Modelos de SLA
 
     # Crear tablas
     with app.app_context():

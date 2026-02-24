@@ -103,6 +103,42 @@
   flex-shrink: 0;
 }
 
+/* SLA Filter Chip */
+.sla-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sla-filter-chip.critico {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.sla-filter-chip.alerta {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.sla-filter-chip button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: inherit;
+  padding: 0;
+  opacity: 0.7;
+}
+
+.sla-filter-chip button:hover {
+  opacity: 1;
+}
+
 .totales-generales {
   display: flex;
   align-items: center;

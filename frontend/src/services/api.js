@@ -124,6 +124,12 @@ export const localesApi = {
   obtener: (id) => api.get(`/locales/${id}`),
 };
 
+// SLA
+export const slaApi = {
+  obtenerNotificaciones: () => api.get('/sla/notificaciones'),
+  obtenerViolaciones: (params) => api.get('/sla/violations', { params }),
+};
+
 // Auth
 export const authApi = {
   login: async (email, password) => {

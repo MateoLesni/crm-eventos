@@ -262,3 +262,12 @@
 .evento-card:hover .card-arrow {
   opacity: 1;
 }
+
+/* SLA Indicators */
+.evento-card.sla-alerta {
+  border-left: 3px solid #facc15;
+}
+
+.evento-card.sla-critico {
+  border-left: 3px solid #ef4444;
+}

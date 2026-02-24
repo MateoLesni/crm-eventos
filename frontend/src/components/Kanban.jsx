@@ -74,7 +74,7 @@ const saveToStorage = (key, value) => {
   }
 };
 
-export default function Kanban({ busquedaGlobal = '' }) {
+export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null, onClearEventoNotif }) {
   const { isAdmin } = useAuth();
 
   // Comerciales no ven CONSULTA_ENTRANTE para evitar especulación
@@ -114,6 +114,7 @@ export default function Kanban({ busquedaGlobal = '' }) {
       comercial_id: '',
       paxMin: '',
       paxMax: '',
+      sla: '',
     })
   );
   const [showFiltrosGlobales, setShowFiltrosGlobales] = useState(() =>
@@ -157,6 +158,15 @@ export default function Kanban({ busquedaGlobal = '' }) {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.SHOW_FILTROS, showFiltrosGlobales);
   }, [showFiltrosGlobales]);
+
+  // Abrir modal desde notificación (campanita)
+  useEffect(() => {
+    if (eventoIdDesdeNotif) {
+      setEventoSeleccionado({ id: eventoIdDesdeNotif });
+      setTabInicial('detalle');
+      if (onClearEventoNotif) onClearEventoNotif();
+    }
+  }, [eventoIdDesdeNotif]);
 
   const cargarEventos = async () => {
     try {
@@ -222,6 +232,9 @@ export default function Kanban({ busquedaGlobal = '' }) {
     if (filtrosGlobales.paxMax) {
       const max = parseInt(filtrosGlobales.paxMax);
       resultado = resultado.filter(e => (e.cantidad_personas || 0) <= max);
+    }
+    if (filtrosGlobales.sla) {
+      resultado = resultado.filter(e => e.sla_info?.status === filtrosGlobales.sla);
     }
 
     return resultado;
@@ -374,6 +387,7 @@ export default function Kanban({ busquedaGlobal = '' }) {
       comercial_id: '',
       paxMin: '',
       paxMax: '',
+      sla: '',
     });
   };
 
@@ -471,9 +485,15 @@ export default function Kanban({ busquedaGlobal = '' }) {
     URL.revokeObjectURL(url);
   };
 
-  // Calcular totales generales
-  const totalEventos = Object.values(totales).reduce((sum, t) => sum + (t?.cantidad || 0), 0);
-  const totalMonto = Object.values(totales).reduce((sum, t) => sum + (t?.monto || 0), 0);
+  // Calcular totales generales (basados en eventos filtrados)
+  const totalesCalculados = estadosVisibles.reduce((acc, estado) => {
+    const filtrados = getEventosFiltrados(estado.id);
+    acc.eventos += filtrados.length;
+    acc.monto += filtrados.reduce((sum, e) => sum + (e.presupuesto || 0), 0);
+    return acc;
+  }, { eventos: 0, monto: 0 });
+  const totalEventos = totalesCalculados.eventos;
+  const totalMonto = totalesCalculados.monto;
 
   if (loading) {
     return <div className="loading">Cargando eventos...</div>;
@@ -627,6 +647,17 @@ export default function Kanban({ busquedaGlobal = '' }) {
               </select>
             </div>
             <div className="filtro-group">
+              <label>Urgencia</label>
+              <select
+                value={filtrosGlobales.sla}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, sla: e.target.value})}
+              >
+                <option value="">Todos</option>
+                <option value="alerta">En alerta</option>
+                <option value="critico">Criticos</option>
+              </select>
+            </div>
+            <div className="filtro-group">
               <label>PAX desde</label>
               <input
                 type="number"
@@ -750,7 +781,7 @@ export default function Kanban({ busquedaGlobal = '' }) {
 
                 <div className="column-stats">
                   <span className="stat-monto">
-                    ${(totales[estado.id]?.monto || 0).toLocaleString()}
+                    ${eventosFiltrados.reduce((sum, e) => sum + (e.presupuesto || 0), 0).toLocaleString()}
                   </span>
                   <span className="stat-separator">·</span>
                   <span className="stat-count">{eventosFiltrados.length} eventos</span>

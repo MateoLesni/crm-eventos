@@ -8,6 +8,7 @@ import ReportesFinancieros from './pages/ReportesFinancieros';
 import Eliminados from './pages/Eliminados';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
+import NotificationBell from './components/NotificationBell';
 import './App.css';
 
 function PrivateRoute({ children }) {
@@ -105,6 +106,7 @@ function Layout({ children }) {
   const { usuario, logout } = useAuth();
   const location = useLocation();
   const [busquedaGlobal, setBusquedaGlobal] = useState('');
+  const [eventoIdDesdeNotif, setEventoIdDesdeNotif] = useState(null);
 
   // Limpiar búsqueda al cambiar de página
   useEffect(() => {
@@ -154,12 +156,7 @@ function Layout({ children }) {
                 <path d="M12 5v14M5 12h14"/>
               </svg>
             </button>
-            <button className="btn-icon" title="Notificaciones">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              </svg>
-            </button>
+            <NotificationBell onEventoClick={(id) => setEventoIdDesdeNotif(id)} />
             <button className="btn-icon" title="Ayuda">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/>
@@ -173,7 +170,7 @@ function Layout({ children }) {
           </div>
         </header>
         <main className="app-main">
-          {esPipeline ? cloneElement(children, { busquedaGlobal }) : children}
+          {esPipeline ? cloneElement(children, { busquedaGlobal, eventoIdDesdeNotif, onClearEventoNotif: () => setEventoIdDesdeNotif(null) }) : children}
         </main>
       </div>
     </div>

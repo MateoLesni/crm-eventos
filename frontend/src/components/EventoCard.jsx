@@ -82,7 +82,7 @@ export default function EventoCard({ evento, onClick, onPrecheckClick, onEtiquet
 
   return (
     <div
-      className="evento-card"
+      className={`evento-card${evento.sla_info?.status === 'critico' ? ' sla-critico' : evento.sla_info?.status === 'alerta' ? ' sla-alerta' : ''}`}
       onClick={onClick}
     >
       <div className="card-content">

@@ -54,9 +54,20 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
   const [showRevertir, setShowRevertir] = useState(false);
   const [guardandoRevertir, setGuardandoRevertir] = useState(false);
 
+  // Toast de confirmación
+  const [showGuardado, setShowGuardado] = useState(false);
+
   useEffect(() => {
     cargarDatos();
   }, [evento.id]);
+
+  // Auto-dismiss del toast
+  useEffect(() => {
+    if (showGuardado) {
+      const timer = setTimeout(() => setShowGuardado(false), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [showGuardado]);
 
   const cargarDatos = async () => {
     try {
@@ -150,7 +161,8 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
       });
       setShowCotizacion(false);
       cargarDatos();
-      onUpdated();
+      onRefresh();
+      setShowGuardado(true);
     } catch (error) {
       console.error('Error guardando cotizacion:', error);
       const errorMsg = error.response?.data?.error || 'Error guardando cotización';
@@ -204,7 +216,8 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
       setShowAdvertenciaFecha(false);
       setPendienteGuardar(null);
       cargarDatos();
-      onUpdated();
+      onRefresh();
+      setShowGuardado(true);
     } catch (error) {
       console.error('Error guardando edicion:', error);
       const errorMsg = error.response?.data?.error || 'Error guardando cambios';
@@ -334,6 +347,10 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
               {eventoDetalle?.estado}
             </span>
           </div>
+
+          {showGuardado && (
+            <div className="toast-guardado">Cambios guardados</div>
+          )}
 
           {/* Tabs de navegacion */}
           <div className="modal-tabs">
