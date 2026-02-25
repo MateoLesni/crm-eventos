@@ -455,9 +455,8 @@ def subir_comprobante(current_user, evento_id, pago_id):
         # Subir archivo
         blob.upload_from_file(file, content_type=file.content_type)
 
-        # Hacer público o generar URL firmada
-        blob.make_public()
-        url = blob.public_url
+        # Construir URL pública (bucket tiene acceso uniforme con IAM público)
+        url = f"https://storage.googleapis.com/{GCP_BUCKET_NAME}/{filename}"
 
         # Actualizar pago
         pago.comprobante_url = url
