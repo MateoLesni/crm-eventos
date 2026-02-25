@@ -39,6 +39,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     isAdmin: usuario?.rol === 'admin',
+    isTesoreria: usuario?.rol === 'tesoreria',
   };
 
   return (

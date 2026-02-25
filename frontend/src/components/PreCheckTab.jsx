@@ -40,6 +40,9 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
     fecha_pago: new Date().toISOString().split('T')[0],
     notas: ''
   });
+  const [comprobanteFile, setComprobanteFile] = useState(null);
+  const [comprobantePreview, setComprobantePreview] = useState(null);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   const [guardando, setGuardando] = useState(false);
 
@@ -216,18 +219,37 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
   // ==================== PAGOS ====================
 
   const handleGuardarPago = async () => {
+    // Comprobante obligatorio al crear nuevo pago
+    if (!editingItem && !comprobanteFile) {
+      alert('Debés adjuntar un comprobante para registrar el pago');
+      return;
+    }
     try {
       setGuardando(true);
       if (editingItem) {
         await precheckApi.actualizarPago(eventoId, editingItem.id, pagoForm);
+        // Si seleccionó nuevo comprobante al editar, subirlo
+        if (comprobanteFile) {
+          await precheckApi.subirComprobante(eventoId, editingItem.id, comprobanteFile);
+        }
       } else {
-        await precheckApi.agregarPago(eventoId, pagoForm);
+        const res = await precheckApi.agregarPago(eventoId, pagoForm);
+        const nuevoPagoId = res.data.pago.id;
+        // Subir comprobante inmediatamente — si falla, eliminar el pago
+        try {
+          await precheckApi.subirComprobante(eventoId, nuevoPagoId, comprobanteFile);
+        } catch (uploadErr) {
+          // Rollback: eliminar el pago que quedó sin comprobante
+          try { await precheckApi.eliminarPago(eventoId, nuevoPagoId); } catch (_) {}
+          throw uploadErr;
+        }
       }
       await cargarPrecheck();
       resetPagoForm();
     } catch (err) {
       console.error('Error guardando pago:', err);
-      alert(err.response?.data?.error || 'Error al guardar pago');
+      alert(err.response?.data?.error || 'Error al guardar pago. Verificá que el comprobante sea válido.');
+      await cargarPrecheck();
     } finally {
       setGuardando(false);
     }
@@ -272,6 +294,9 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
       fecha_pago: new Date().toISOString().split('T')[0],
       notas: ''
     });
+    setComprobanteFile(null);
+    if (comprobantePreview) URL.revokeObjectURL(comprobantePreview);
+    setComprobantePreview(null);
     setEditingItem(null);
     setShowPagoForm(false);
   };
@@ -649,6 +674,7 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
                 <th>Fecha</th>
                 <th>Método</th>
                 <th className="text-right">Monto</th>
+                <th>Estado</th>
                 <th>Comprobante</th>
                 <th>Notas</th>
                 {puede_editar_pagos && <th className="text-center">Acciones</th>}
@@ -659,13 +685,43 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
                 <tr key={p.id}>
                   <td>{new Date(p.fecha_pago).toLocaleDateString('es-AR')}</td>
                   <td>{p.metodo_pago}</td>
-                  <td className="text-right">{formatearMoneda(p.monto)}</td>
+                  <td className="text-right">
+                    {p.monto_original ? (
+                      <div>
+                        <div>{formatearMoneda(p.monto)}</div>
+                        <div style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: '11px' }}>{formatearMoneda(p.monto_original)}</div>
+                        {p.observacion_monto && <div style={{ fontSize: '10px', color: '#6b7280', fontStyle: 'italic' }}>{p.observacion_monto}</div>}
+                      </div>
+                    ) : formatearMoneda(p.monto)}
+                  </td>
+                  <td>
+                    <span className={`pago-estado-badge pago-estado-${(p.estado || 'VALIDADO').toLowerCase()}`}>
+                      {p.estado === 'REVISION' ? 'En revisión' : p.estado === 'VALIDADO' ? 'Validado' : p.estado === 'RECHAZADO' ? 'Rechazado' : 'Validado'}
+                    </span>
+                    {p.estado === 'VALIDADO' && p.numero_oppen && (
+                      <div style={{ fontSize: '10px', color: '#059669', marginTop: '2px' }}>Oppen: {p.numero_oppen}</div>
+                    )}
+                    {p.estado === 'RECHAZADO' && p.motivo_rechazo && (
+                      <div style={{ fontSize: '10px', color: '#dc2626', marginTop: '2px' }}>{p.motivo_rechazo}</div>
+                    )}
+                  </td>
                   <td>
                     {p.comprobante_url ? (
-                      <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" className="comprobante-link">
-                        📎 {p.comprobante_nombre || 'Ver'}
-                      </a>
-                    ) : puede_editar_pagos ? (
+                      <div className="comprobante-cell-view">
+                        {/\.(jpg|jpeg|png|gif|webp)$/i.test(p.comprobante_nombre || p.comprobante_url) ? (
+                          <img
+                            src={p.comprobante_url}
+                            alt="Comprobante"
+                            className="comprobante-thumb"
+                            onClick={() => setLightboxUrl(p.comprobante_url)}
+                          />
+                        ) : (
+                          <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" className="comprobante-link">
+                            📎 {p.comprobante_nombre || 'Ver PDF'}
+                          </a>
+                        )}
+                      </div>
+                    ) : puede_editar_pagos && p.estado === 'REVISION' ? (
                       <label className="upload-label">
                         <input
                           type="file"
@@ -686,8 +742,14 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
                   <td className="notas-cell">{p.notas || '-'}</td>
                   {puede_editar_pagos && (
                     <td className="text-center acciones-cell">
-                      <button onClick={() => handleEditarPago(p)} title="Editar">✏️</button>
-                      <button onClick={() => handleEliminarPago(p.id)} title="Eliminar">🗑️</button>
+                      {p.estado === 'REVISION' ? (
+                        <>
+                          <button onClick={() => handleEditarPago(p)} title="Editar">✏️</button>
+                          <button onClick={() => handleEliminarPago(p.id)} title="Eliminar">🗑️</button>
+                        </>
+                      ) : (
+                        <span style={{ color: '#d1d5db', fontSize: '11px' }}>—</span>
+                      )}
                     </td>
                   )}
                 </tr>
@@ -697,7 +759,7 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
               <tr>
                 <td colSpan={2} className="text-right"><strong>Total Pagado:</strong></td>
                 <td className="text-right"><strong>{formatearMoneda(resumen.total_pagado)}</strong></td>
-                <td colSpan={puede_editar_pagos ? 3 : 2}></td>
+                <td colSpan={puede_editar_pagos ? 4 : 3}></td>
               </tr>
             </tfoot>
           </table>
@@ -745,6 +807,42 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
                 />
               </div>
             </div>
+            <div className="form-row" style={{ marginTop: '8px', alignItems: 'center', gap: '12px' }}>
+              <div className="form-field">
+                <label>Comprobante {!editingItem && '*'}</label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => {
+                    const file = e.target.files[0] || null;
+                    setComprobanteFile(file);
+                    if (file && file.type.startsWith('image/')) {
+                      const url = URL.createObjectURL(file);
+                      setComprobantePreview(url);
+                    } else {
+                      setComprobantePreview(null);
+                    }
+                  }}
+                  className="file-input-pago"
+                />
+              </div>
+              {comprobanteFile && (
+                <div className="comprobante-preview-container">
+                  {comprobantePreview ? (
+                    <img
+                      src={comprobantePreview}
+                      alt="Preview"
+                      className="comprobante-preview-thumb"
+                      onClick={() => setLightboxUrl(comprobantePreview)}
+                    />
+                  ) : (
+                    <span className="comprobante-preview-file">
+                      PDF: {comprobanteFile.name}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="form-actions">
               <button className="btn-guardar" onClick={handleGuardarPago} disabled={guardando}>
                 {guardando ? 'Guardando...' : (editingItem ? 'Actualizar' : 'Agregar')}
@@ -762,6 +860,25 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
           <span>{formatearMoneda(Math.abs(resumen.pendiente))}</span>
         </div>
       </section>
+
+      {/* Lightbox para ver comprobantes */}
+      {lightboxUrl && (
+        <div className="comprobante-lightbox" onClick={() => setLightboxUrl(null)}>
+          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <button className="lightbox-close" onClick={() => setLightboxUrl(null)}>&times;</button>
+            <img src={lightboxUrl} alt="Comprobante" className="lightbox-img" />
+            <a
+              href={lightboxUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="lightbox-open-new"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Abrir en nueva pestaña
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

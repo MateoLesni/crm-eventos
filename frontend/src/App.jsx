@@ -6,6 +6,7 @@ import Calendario from './pages/Calendario';
 import Reportes from './pages/Reportes';
 import ReportesFinancieros from './pages/ReportesFinancieros';
 import Eliminados from './pages/Eliminados';
+import Tesoreria from './pages/Tesoreria';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import NotificationBell from './components/NotificationBell';
@@ -39,6 +40,24 @@ function AdminRoute({ children }) {
   return children;
 }
 
+function TesoreriaRoute({ children }) {
+  const { usuario, loading } = useAuth();
+
+  if (loading) {
+    return <div className="loading-screen">Cargando...</div>;
+  }
+
+  if (!usuario) {
+    return <Navigate to="/login" />;
+  }
+
+  if (usuario.rol !== 'tesoreria' && usuario.rol !== 'admin') {
+    return <Navigate to="/" />;
+  }
+
+  return children;
+}
+
 function AppRoutes() {
   const { usuario } = useAuth();
 
@@ -46,11 +65,12 @@ function AppRoutes() {
     <Routes>
       <Route
         path="/login"
-        element={usuario ? <Navigate to="/" /> : <Login />}
+        element={usuario ? <Navigate to={usuario.rol === 'tesoreria' ? '/tesoreria' : '/'} /> : <Login />}
       />
       <Route
         path="/"
         element={
+          usuario?.rol === 'tesoreria' ? <Navigate to="/tesoreria" /> :
           <PrivateRoute>
             <Layout>
               <Kanban />
@@ -98,6 +118,16 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/tesoreria"
+        element={
+          <TesoreriaRoute>
+            <Layout>
+              <Tesoreria />
+            </Layout>
+          </TesoreriaRoute>
+        }
+      />
     </Routes>
   );
 }
@@ -120,6 +150,7 @@ function Layout({ children }) {
     if (location.pathname === '/reportes') return 'Reportes Operativos';
     if (location.pathname === '/reportes-financieros') return 'Reportes Financieros';
     if (location.pathname === '/eliminados') return 'Papelera';
+    if (location.pathname === '/tesoreria') return 'Tesorería';
     return 'Eventos';
   };
 

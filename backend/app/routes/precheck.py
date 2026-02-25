@@ -337,6 +337,10 @@ def actualizar_pago(current_user, evento_id, pago_id):
     evento = Evento.query.get_or_404(evento_id)
     pago = PrecheckPago.query.filter_by(id=pago_id, evento_id=evento_id).first_or_404()
 
+    # Solo se pueden editar pagos en REVISION
+    if pago.estado != 'REVISION':
+        return jsonify({'error': 'Solo se pueden editar pagos en revisión'}), 403
+
     puede_editar, error = verificar_permiso_pagos(evento, current_user)
     if not puede_editar:
         return jsonify({'error': error}), 403
@@ -369,6 +373,10 @@ def eliminar_pago(current_user, evento_id, pago_id):
     """Eliminar un pago del pre-check"""
     evento = Evento.query.get_or_404(evento_id)
     pago = PrecheckPago.query.filter_by(id=pago_id, evento_id=evento_id).first_or_404()
+
+    # Solo se pueden eliminar pagos en REVISION
+    if pago.estado != 'REVISION':
+        return jsonify({'error': 'Solo se pueden eliminar pagos en revisión'}), 403
 
     puede_editar, error = verificar_permiso_pagos(evento, current_user)
     if not puede_editar:

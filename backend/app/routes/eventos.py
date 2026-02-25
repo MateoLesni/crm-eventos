@@ -70,7 +70,10 @@ def calcular_estado_automatico(evento, es_nuevo=False):
     if evento.comercial_id:
         # Verificar si es "Reservas Múltiples" -> MULTIRESERVA
         comercial = Usuario.query.get(evento.comercial_id)
-        if comercial and comercial.email == RESERVAS_MULTIPLES_EMAIL:
+        if comercial and (
+            comercial.email == RESERVAS_MULTIPLES_EMAIL or
+            ('reserva' in (comercial.nombre or '').lower() and 'multiple' in (comercial.nombre or '').lower())
+        ):
             return 'MULTIRESERVA'  # Estado especial, se asigna directamente
 
         nuevo_estado = 'ASIGNADO'

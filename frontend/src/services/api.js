@@ -124,6 +124,15 @@ export const localesApi = {
   obtener: (id) => api.get(`/locales/${id}`),
 };
 
+// Tesorería
+export const tesoreriaApi = {
+  obtenerPagosPendientes: () => api.get('/tesoreria/pagos-pendientes'),
+  obtenerPagosValidados: () => api.get('/tesoreria/pagos-validados'),
+  obtenerPagosRechazados: () => api.get('/tesoreria/pagos-rechazados'),
+  validarPago: (pagoId, data) => api.put(`/tesoreria/pagos/${pagoId}/validar`, data),
+  rechazarPago: (pagoId, data) => api.put(`/tesoreria/pagos/${pagoId}/rechazar`, data),
+};
+
 // SLA
 export const slaApi = {
   obtenerNotificaciones: () => api.get('/sla/notificaciones'),

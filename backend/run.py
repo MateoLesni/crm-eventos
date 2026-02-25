@@ -46,5 +46,7 @@ def init_db():
         print("Base de datos inicializada con locales y usuarios")
 
 if __name__ == '__main__':
-    init_db()
+    import sys
+    if '--init-db' in sys.argv:
+        init_db()
     app.run(debug=True, port=5000)

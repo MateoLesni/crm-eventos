@@ -52,6 +52,10 @@ def create_app():
     from app.routes.sla import sla_bp
     app.register_blueprint(sla_bp, url_prefix='/api/sla')
 
+    # Registrar blueprint de Tesorería (validación de pagos)
+    from app.routes.tesoreria import tesoreria_bp
+    app.register_blueprint(tesoreria_bp, url_prefix='/api/tesoreria')
+
     # Importar modelos para que SQLAlchemy los conozca
     from app import models  # Modelos del CRM
     from app import models_whatsapp  # Modelos de WhatsApp

@@ -116,8 +116,18 @@ class PrecheckPago(db.Model):
     created_at = db.Column(db.DateTime, default=ahora_argentina)
     updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
+    # Campos de validación (tesorería)
+    estado = db.Column(db.String(20), nullable=False, default='REVISION')  # REVISION, VALIDADO, RECHAZADO
+    numero_oppen = db.Column(db.String(50), nullable=True)
+    validado_por_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
+    fecha_validacion = db.Column(db.DateTime, nullable=True)
+    motivo_rechazo = db.Column(db.Text, nullable=True)
+    monto_original = db.Column(db.Numeric(12, 2), nullable=True)
+    observacion_monto = db.Column(db.Text, nullable=True)
+
     # Relación con evento
     evento = db.relationship('Evento', backref=db.backref('precheck_pagos', lazy='dynamic', cascade='all, delete-orphan'))
+    validado_por = db.relationship('Usuario', foreign_keys=[validado_por_id])
 
     def to_dict(self):
         return {
@@ -129,6 +139,14 @@ class PrecheckPago(db.Model):
             'comprobante_url': self.comprobante_url,
             'comprobante_nombre': self.comprobante_nombre,
             'notas': self.notas,
+            'estado': self.estado,
+            'numero_oppen': self.numero_oppen,
+            'validado_por_id': self.validado_por_id,
+            'validado_por_nombre': self.validado_por.nombre if self.validado_por else None,
+            'fecha_validacion': self.fecha_validacion.isoformat() if self.fecha_validacion else None,
+            'motivo_rechazo': self.motivo_rechazo,
+            'monto_original': float(self.monto_original) if self.monto_original else None,
+            'observacion_monto': self.observacion_monto,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -164,10 +182,11 @@ def calcular_resumen_precheck(evento):
     # Total con IVA
     total = subtotal + iva
 
-    # Sumar pagos
+    # Sumar pagos (solo los VALIDADO cuentan para el saldo)
     total_pagado = Decimal('0')
     for pago in evento.precheck_pagos:
-        total_pagado += Decimal(str(pago.monto))
+        if pago.estado == 'VALIDADO':
+            total_pagado += Decimal(str(pago.monto))
 
     # Pendiente
     pendiente = total - total_pagado
