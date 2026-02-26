@@ -2,6 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { tesoreriaApi } from '../services/api';
 import './Tesoreria.css';
 
+const FILTROS_INICIALES = {
+  fechaPagoDesde: '',
+  fechaPagoHasta: '',
+  fechaCargaDesde: '',
+  fechaCargaHasta: '',
+  local: '',
+  metodo: '',
+  numeroOppen: '',
+};
+
 export default function Tesoreria() {
   const [tab, setTab] = useState('pendientes');
   const [pagos, setPagos] = useState([]);
@@ -12,6 +22,8 @@ export default function Tesoreria() {
   const [submitting, setSubmitting] = useState(false);
   const [counts, setCounts] = useState({ pendientes: 0, validados: 0, rechazados: 0 });
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [filtros, setFiltros] = useState(FILTROS_INICIALES);
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
 
   const cargarPagos = useCallback(async () => {
     setLoading(true);
@@ -149,7 +161,37 @@ export default function Tesoreria() {
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
   };
 
-  const totalMontoPendientes = pagos
+  // Extraer opciones únicas para los selects de filtro
+  const localesUnicos = [...new Set(pagos.map(p => p.local_nombre).filter(Boolean))].sort();
+  const metodosUnicos = [...new Set(pagos.map(p => p.metodo_pago).filter(Boolean))].sort();
+
+  const filtrosActivos = Object.values(filtros).some(v => v !== '');
+
+  const limpiarFiltros = () => setFiltros(FILTROS_INICIALES);
+
+  // Filtrar pagos en memoria
+  const pagosFiltrados = pagos.filter(p => {
+    if (filtros.fechaPagoDesde && p.fecha_pago < filtros.fechaPagoDesde) return false;
+    if (filtros.fechaPagoHasta && p.fecha_pago > filtros.fechaPagoHasta) return false;
+    if (filtros.fechaCargaDesde && p.created_at) {
+      const carga = p.created_at.split('T')[0];
+      if (carga < filtros.fechaCargaDesde) return false;
+    }
+    if (filtros.fechaCargaHasta && p.created_at) {
+      const carga = p.created_at.split('T')[0];
+      if (carga > filtros.fechaCargaHasta) return false;
+    }
+    if (filtros.local && p.local_nombre !== filtros.local) return false;
+    if (filtros.metodo && p.metodo_pago !== filtros.metodo) return false;
+    if (filtros.numeroOppen && p.numero_oppen) {
+      if (!p.numero_oppen.toLowerCase().includes(filtros.numeroOppen.toLowerCase())) return false;
+    } else if (filtros.numeroOppen && !p.numero_oppen) {
+      return false;
+    }
+    return true;
+  });
+
+  const totalMontoPendientes = pagosFiltrados
     .filter(() => tab === 'pendientes')
     .reduce((sum, p) => sum + (p.monto || 0), 0);
 
@@ -187,10 +229,10 @@ export default function Tesoreria() {
           </button>
         </div>
 
-        {tab === 'pendientes' && pagos.length > 0 && (
+        {tab === 'pendientes' && pagosFiltrados.length > 0 && (
           <div className="tesoreria-summary">
             <div className="summary-card pendiente">
-              <span className="summary-valor">{pagos.length}</span>
+              <span className="summary-valor">{pagosFiltrados.length}</span>
               <span className="summary-label">Pagos por revisar</span>
             </div>
             <div className="summary-card pendiente">
@@ -201,17 +243,110 @@ export default function Tesoreria() {
         )}
       </div>
 
+      {/* Filtros */}
+      {pagos.length > 0 && (
+        <div className="tesoreria-filtros-wrapper">
+          <button
+            className={`btn-toggle-filtros ${filtrosActivos ? 'activos' : ''}`}
+            onClick={() => setMostrarFiltros(!mostrarFiltros)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+            Filtros
+            {filtrosActivos && <span className="filtros-activos-dot" />}
+          </button>
+          {filtrosActivos && (
+            <button className="btn-limpiar-filtros" onClick={limpiarFiltros}>
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      )}
+
+      {mostrarFiltros && (
+        <div className="tesoreria-filtros">
+          <div className="filtros-grid">
+            <div className="filtro-group">
+              <label>Fecha pago desde</label>
+              <input
+                type="date"
+                value={filtros.fechaPagoDesde}
+                onChange={(e) => setFiltros({ ...filtros, fechaPagoDesde: e.target.value })}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>Fecha pago hasta</label>
+              <input
+                type="date"
+                value={filtros.fechaPagoHasta}
+                onChange={(e) => setFiltros({ ...filtros, fechaPagoHasta: e.target.value })}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>Fecha carga desde</label>
+              <input
+                type="date"
+                value={filtros.fechaCargaDesde}
+                onChange={(e) => setFiltros({ ...filtros, fechaCargaDesde: e.target.value })}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>Fecha carga hasta</label>
+              <input
+                type="date"
+                value={filtros.fechaCargaHasta}
+                onChange={(e) => setFiltros({ ...filtros, fechaCargaHasta: e.target.value })}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>Local</label>
+              <select
+                value={filtros.local}
+                onChange={(e) => setFiltros({ ...filtros, local: e.target.value })}
+              >
+                <option value="">Todos</option>
+                {localesUnicos.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+            <div className="filtro-group">
+              <label>Método</label>
+              <select
+                value={filtros.metodo}
+                onChange={(e) => setFiltros({ ...filtros, metodo: e.target.value })}
+              >
+                <option value="">Todos</option>
+                {metodosUnicos.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            {tab === 'validados' && (
+              <div className="filtro-group">
+                <label>N° Oppen</label>
+                <input
+                  type="text"
+                  value={filtros.numeroOppen}
+                  onChange={(e) => setFiltros({ ...filtros, numeroOppen: e.target.value })}
+                  placeholder="Buscar..."
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="tesoreria-loading">Cargando pagos...</div>
-      ) : pagos.length === 0 ? (
+      ) : pagosFiltrados.length === 0 ? (
         <div className="tesoreria-table-container">
           <div className="tesoreria-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <p>
-              {tab === 'pendientes'
+              {filtrosActivos
+                ? 'No hay pagos que coincidan con los filtros'
+                : tab === 'pendientes'
                 ? 'No hay pagos pendientes de validación'
                 : tab === 'validados'
                 ? 'No hay pagos validados en los últimos 30 días'
@@ -238,7 +373,7 @@ export default function Tesoreria() {
               </tr>
             </thead>
             <tbody>
-              {pagos.map((pago) => (
+              {pagosFiltrados.map((pago) => (
                 <tr key={pago.id}>
                   <td>{formatFecha(pago.fecha_pago)}</td>
                   <td className="evento-info">
