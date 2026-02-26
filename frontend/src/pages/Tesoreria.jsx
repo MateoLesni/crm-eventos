@@ -77,7 +77,7 @@ export default function Tesoreria() {
     }
 
     const montoOriginal = formPago.pago.monto;
-    const montoNuevo = parseFloat(formData.monto);
+    const montoNuevo = parsearNumero(formData.monto);
     if (montoNuevo !== montoOriginal && !formData.observacion_monto?.trim()) {
       setFormError('La observación es obligatoria al modificar el monto');
       return;
@@ -87,7 +87,7 @@ export default function Tesoreria() {
     setFormError('');
     try {
       const payload = { numero_oppen: formData.numero_oppen.trim() };
-      if (montoNuevo !== montoOriginal) {
+      if (montoNuevo !== Math.round(montoOriginal)) {
         payload.monto = montoNuevo;
         payload.observacion_monto = formData.observacion_monto.trim();
       }
@@ -123,7 +123,24 @@ export default function Tesoreria() {
   };
 
   const formatMonto = (monto) => {
-    return `$${Number(monto).toLocaleString('es-AR')}`;
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(monto);
+  };
+
+  const formatearNumero = (valor) => {
+    if (valor === '' || valor === null || valor === undefined) return '';
+    const numero = parseInt(String(valor).replace(/\./g, ''), 10);
+    if (isNaN(numero)) return '';
+    return numero.toLocaleString('es-AR');
+  };
+
+  const parsearNumero = (valorFormateado) => {
+    if (!valorFormateado) return 0;
+    return parseInt(String(valorFormateado).replace(/\./g, ''), 10) || 0;
   };
 
   const formatFecha = (fecha) => {
@@ -337,19 +354,22 @@ export default function Tesoreria() {
             <div className="form-group">
               <label>Monto</label>
               <input
-                type="number"
-                step="0.01"
-                value={formData.monto}
-                onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
+                type="text"
+                value={formatearNumero(formData.monto)}
+                onChange={(e) => {
+                  const soloNumeros = e.target.value.replace(/[^\d]/g, '');
+                  const numero = parseInt(soloNumeros, 10) || 0;
+                  setFormData({ ...formData, monto: numero });
+                }}
               />
-              {parseFloat(formData.monto) !== formPago.pago.monto && (
+              {parsearNumero(formData.monto) !== formPago.pago.monto && (
                 <div className="form-hint">
                   Monto original: {formatMonto(formPago.pago.monto)}. Si modificás el monto, la observación es obligatoria.
                 </div>
               )}
             </div>
 
-            {parseFloat(formData.monto) !== formPago.pago.monto && (
+            {parsearNumero(formData.monto) !== formPago.pago.monto && (
               <div className="form-group">
                 <label>Observación del monto *</label>
                 <textarea
