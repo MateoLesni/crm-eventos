@@ -5,6 +5,10 @@ import './Tesoreria.css';
 const FILTROS_INICIALES = {
   fechaPagoDesde: '',
   fechaPagoHasta: '',
+  fechaDepositoDesde: '',
+  fechaDepositoHasta: '',
+  fechaAcreditacionDesde: '',
+  fechaAcreditacionHasta: '',
   fechaCargaDesde: '',
   fechaCargaHasta: '',
   local: '',
@@ -173,6 +177,10 @@ export default function Tesoreria() {
   const pagosFiltrados = pagos.filter(p => {
     if (filtros.fechaPagoDesde && p.fecha_pago < filtros.fechaPagoDesde) return false;
     if (filtros.fechaPagoHasta && p.fecha_pago > filtros.fechaPagoHasta) return false;
+    if (filtros.fechaDepositoDesde && (!p.fecha_deposito || p.fecha_deposito < filtros.fechaDepositoDesde)) return false;
+    if (filtros.fechaDepositoHasta && (!p.fecha_deposito || p.fecha_deposito > filtros.fechaDepositoHasta)) return false;
+    if (filtros.fechaAcreditacionDesde && (!p.fecha_acreditacion || p.fecha_acreditacion < filtros.fechaAcreditacionDesde)) return false;
+    if (filtros.fechaAcreditacionHasta && (!p.fecha_acreditacion || p.fecha_acreditacion > filtros.fechaAcreditacionHasta)) return false;
     if (filtros.fechaCargaDesde && p.created_at) {
       const carga = p.created_at.split('T')[0];
       if (carga < filtros.fechaCargaDesde) return false;
@@ -284,6 +292,38 @@ export default function Tesoreria() {
               />
             </div>
             <div className="filtro-group">
+              <label>F. depósito desde</label>
+              <input
+                type="date"
+                value={filtros.fechaDepositoDesde}
+                onChange={(e) => setFiltros({ ...filtros, fechaDepositoDesde: e.target.value })}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>F. depósito hasta</label>
+              <input
+                type="date"
+                value={filtros.fechaDepositoHasta}
+                onChange={(e) => setFiltros({ ...filtros, fechaDepositoHasta: e.target.value })}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>F. acreditación desde</label>
+              <input
+                type="date"
+                value={filtros.fechaAcreditacionDesde}
+                onChange={(e) => setFiltros({ ...filtros, fechaAcreditacionDesde: e.target.value })}
+              />
+            </div>
+            <div className="filtro-group">
+              <label>F. acreditación hasta</label>
+              <input
+                type="date"
+                value={filtros.fechaAcreditacionHasta}
+                onChange={(e) => setFiltros({ ...filtros, fechaAcreditacionHasta: e.target.value })}
+              />
+            </div>
+            <div className="filtro-group">
               <label>Fecha carga desde</label>
               <input
                 type="date"
@@ -360,6 +400,8 @@ export default function Tesoreria() {
             <thead>
               <tr>
                 <th>Fecha pago</th>
+                <th>F. Depósito</th>
+                <th>F. Acreditación</th>
                 <th>Evento</th>
                 <th>Cliente</th>
                 <th>Local</th>
@@ -376,6 +418,8 @@ export default function Tesoreria() {
               {pagosFiltrados.map((pago) => (
                 <tr key={pago.id}>
                   <td>{formatFecha(pago.fecha_pago)}</td>
+                  <td>{formatFecha(pago.fecha_deposito)}</td>
+                  <td>{formatFecha(pago.fecha_acreditacion)}</td>
                   <td className="evento-info">
                     <span className="evento-titulo-cell">{pago.evento_titulo}</span>
                   </td>

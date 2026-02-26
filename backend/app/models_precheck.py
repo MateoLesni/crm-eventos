@@ -110,6 +110,8 @@ class PrecheckPago(db.Model):
     metodo_pago = db.Column(db.String(50), nullable=False)  # Efectivo, Transferencia, Tarjeta, Cheque, Otros
     monto = db.Column(db.Numeric(12, 2), nullable=False)
     fecha_pago = db.Column(db.Date, nullable=False)
+    fecha_deposito = db.Column(db.Date, nullable=True)
+    fecha_acreditacion = db.Column(db.Date, nullable=True)
     comprobante_url = db.Column(db.String(500), nullable=True)  # URL en GCP bucket
     comprobante_nombre = db.Column(db.String(255), nullable=True)  # Nombre original del archivo
     notas = db.Column(db.Text, nullable=True)
@@ -136,6 +138,8 @@ class PrecheckPago(db.Model):
             'metodo_pago': self.metodo_pago,
             'monto': float(self.monto) if self.monto else 0,
             'fecha_pago': self.fecha_pago.isoformat() if self.fecha_pago else None,
+            'fecha_deposito': self.fecha_deposito.isoformat() if self.fecha_deposito else None,
+            'fecha_acreditacion': self.fecha_acreditacion.isoformat() if self.fecha_acreditacion else None,
             'comprobante_url': self.comprobante_url,
             'comprobante_nombre': self.comprobante_nombre,
             'notas': self.notas,

@@ -38,6 +38,8 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
     metodo_pago: 'Transferencia',
     monto: 0,
     fecha_pago: new Date().toISOString().split('T')[0],
+    fecha_deposito: new Date().toISOString().split('T')[0],
+    fecha_acreditacion: '',
     notas: ''
   });
   const [comprobanteFile, setComprobanteFile] = useState(null);
@@ -219,6 +221,11 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
   // ==================== PAGOS ====================
 
   const handleGuardarPago = async () => {
+    // Fechas obligatorias
+    if (!pagoForm.fecha_deposito || !pagoForm.fecha_acreditacion) {
+      alert('Las fechas de depósito y acreditación son obligatorias');
+      return;
+    }
     // Comprobante obligatorio al crear nuevo pago
     if (!editingItem && !comprobanteFile) {
       alert('Debés adjuntar un comprobante para registrar el pago');
@@ -260,6 +267,8 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
       metodo_pago: pago.metodo_pago,
       monto: pago.monto,
       fecha_pago: pago.fecha_pago,
+      fecha_deposito: pago.fecha_deposito || '',
+      fecha_acreditacion: pago.fecha_acreditacion || '',
       notas: pago.notas || ''
     });
     setEditingItem(pago);
@@ -292,6 +301,8 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
       metodo_pago: 'Transferencia',
       monto: 0,
       fecha_pago: new Date().toISOString().split('T')[0],
+      fecha_deposito: new Date().toISOString().split('T')[0],
+      fecha_acreditacion: '',
       notas: ''
     });
     setComprobanteFile(null);
@@ -672,6 +683,8 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>F. Depósito</th>
+                <th>F. Acreditación</th>
                 <th>Método</th>
                 <th className="text-right">Monto</th>
                 <th>Estado</th>
@@ -684,6 +697,8 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
               {pagos.map((p) => (
                 <tr key={p.id}>
                   <td>{new Date(p.fecha_pago).toLocaleDateString('es-AR')}</td>
+                  <td>{p.fecha_deposito ? new Date(p.fecha_deposito).toLocaleDateString('es-AR') : '-'}</td>
+                  <td>{p.fecha_acreditacion ? new Date(p.fecha_acreditacion).toLocaleDateString('es-AR') : '-'}</td>
                   <td>{p.metodo_pago}</td>
                   <td className="text-right">
                     {p.monto_original ? (
@@ -757,7 +772,7 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={2} className="text-right"><strong>Total Pagado:</strong></td>
+                <td colSpan={4} className="text-right"><strong>Total Pagado:</strong></td>
                 <td className="text-right"><strong>{formatearMoneda(resumen.total_pagado)}</strong></td>
                 <td colSpan={puede_editar_pagos ? 4 : 3}></td>
               </tr>
@@ -770,11 +785,29 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
           <div className="form-inline">
             <div className="form-row form-row-labels">
               <div className="form-field">
-                <label>Fecha</label>
+                <label>Fecha pago</label>
                 <input
                   type="date"
                   value={pagoForm.fecha_pago}
                   onChange={(e) => setPagoForm({ ...pagoForm, fecha_pago: e.target.value })}
+                />
+              </div>
+              <div className="form-field">
+                <label>Fecha depósito *</label>
+                <input
+                  type="date"
+                  value={pagoForm.fecha_deposito}
+                  onChange={(e) => setPagoForm({ ...pagoForm, fecha_deposito: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Fecha acreditación *</label>
+                <input
+                  type="date"
+                  value={pagoForm.fecha_acreditacion}
+                  onChange={(e) => setPagoForm({ ...pagoForm, fecha_acreditacion: e.target.value })}
+                  required
                 />
               </div>
               <div className="form-field">
