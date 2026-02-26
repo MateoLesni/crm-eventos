@@ -708,7 +708,7 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
                   <td>
                     {p.comprobante_url ? (
                       <div className="comprobante-cell-view">
-                        {/\.(jpg|jpeg|png|gif|webp)$/i.test(p.comprobante_nombre || p.comprobante_url) ? (
+                        {/\.(jpg|jpeg|png|gif|webp)/i.test(p.comprobante_nombre || p.comprobante_url.split('?')[0]) ? (
                           <img
                             src={p.comprobante_url}
                             alt="Comprobante"

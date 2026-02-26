@@ -246,7 +246,7 @@ export default function Tesoreria() {
                   </td>
                   <td>
                     {pago.comprobante_url ? (
-                      /\.(jpg|jpeg|png|gif|webp)$/i.test(pago.comprobante_nombre || pago.comprobante_url) ? (
+                      /\.(jpg|jpeg|png|gif|webp)/i.test(pago.comprobante_nombre || pago.comprobante_url.split('?')[0]) ? (
                         <img
                           src={pago.comprobante_url}
                           alt="Comprobante"

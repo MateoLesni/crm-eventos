@@ -50,7 +50,9 @@ def generar_signed_url(blob_path, expiration_minutes=30):
         )
         return url
     except Exception as e:
+        import traceback
         print(f"Error generando signed URL para {blob_path}: {e}")
+        traceback.print_exc()
         return None
 
 
@@ -95,7 +97,12 @@ def enrich_pago_dict(pago_dict):
     """
     Enriquece un dict de pago con signed URL para el comprobante.
     Reemplaza comprobante_url (blob path) por una signed URL temporal.
+    Si falla la generación, mantiene el valor original.
     """
-    if pago_dict.get('comprobante_url'):
-        pago_dict['comprobante_url'] = generar_signed_url(pago_dict['comprobante_url'])
+    original_url = pago_dict.get('comprobante_url')
+    if original_url:
+        signed = generar_signed_url(original_url)
+        if signed:
+            pago_dict['comprobante_url'] = signed
+        # Si signed es None, mantener original_url (mejor URL rota que None)
     return pago_dict
