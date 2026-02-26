@@ -3,13 +3,16 @@ Utilidades para Google Cloud Storage
 Manejo de comprobantes con signed URLs
 """
 from google.cloud import storage
+from google.auth import default as google_auth_default
+from google.auth.transport import requests as google_auth_requests
 from datetime import timedelta
 import os
 
 GCP_BUCKET_NAME = os.environ.get('GCP_BUCKET_COMPROBANTES', 'crm-eventos-comprobantes')
 
-# Cache del cliente para no recrearlo en cada request
+# Cache del cliente y credenciales para no recrearlos en cada request
 _storage_client = None
+_signing_credentials = None
 
 
 def get_storage_client():
@@ -19,9 +22,30 @@ def get_storage_client():
     return _storage_client
 
 
+def _get_signing_credentials():
+    """
+    Obtiene credenciales para firmar URLs.
+    En Cloud Run no hay clave privada local, así que usamos
+    IAM signBlob API via service_account_email + access_token.
+    Refresca automáticamente si el token expiró.
+    """
+    global _signing_credentials
+    if _signing_credentials is None:
+        credentials, project = google_auth_default()
+        _signing_credentials = credentials
+    # Refrescar si no tiene token o si expiró
+    if not _signing_credentials.valid:
+        auth_request = google_auth_requests.Request()
+        _signing_credentials.refresh(auth_request)
+    return _signing_credentials
+
+
 def generar_signed_url(blob_path, expiration_minutes=30):
     """
     Genera una signed URL temporal para un blob en el bucket.
+
+    En Cloud Run (sin clave privada local), usa IAM signBlob API.
+    Requiere rol 'Service Account Token Creator' en la service account.
 
     Args:
         blob_path: Path del blob (ej: 'comprobantes/216/4_abc.jpeg')
@@ -43,10 +67,15 @@ def generar_signed_url(blob_path, expiration_minutes=30):
         bucket = client.bucket(GCP_BUCKET_NAME)
         blob = bucket.blob(blob_path)
 
+        # Obtener credenciales con service_account_email para Cloud Run
+        signing_creds = _get_signing_credentials()
+
         url = blob.generate_signed_url(
             version='v4',
             expiration=timedelta(minutes=expiration_minutes),
             method='GET',
+            service_account_email=signing_creds.service_account_email,
+            access_token=signing_creds.token,
         )
         return url
     except Exception as e:
