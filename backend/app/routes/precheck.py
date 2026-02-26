@@ -10,15 +10,11 @@ from app.models_precheck import (
     CATEGORIAS_PRECHECK, METODOS_PAGO, calcular_resumen_precheck
 )
 from app.routes.auth import token_required
+from app.utils.storage import subir_archivo, eliminar_archivo, enrich_pago_dict
 from datetime import datetime, date, timedelta
-from google.cloud import storage
-import os
 import uuid
 
 precheck_bp = Blueprint('precheck', __name__)
-
-# Configuración del bucket de GCP
-GCP_BUCKET_NAME = os.environ.get('GCP_BUCKET_COMPROBANTES', 'crm-eventos-comprobantes')
 
 
 def verificar_permiso_edicion(evento, usuario):
@@ -81,7 +77,7 @@ def obtener_precheck(current_user, evento_id):
     # Obtener todos los datos
     conceptos = [c.to_dict() for c in evento.precheck_conceptos.order_by(PrecheckConcepto.categoria, PrecheckConcepto.id)]
     adicionales = [a.to_dict() for a in evento.precheck_adicionales.order_by(PrecheckAdicional.categoria, PrecheckAdicional.id)]
-    pagos = [p.to_dict() for p in evento.precheck_pagos.order_by(PrecheckPago.fecha_pago.desc())]
+    pagos = [enrich_pago_dict(p.to_dict()) for p in evento.precheck_pagos.order_by(PrecheckPago.fecha_pago.desc())]
     resumen = calcular_resumen_precheck(evento)
 
     # Verificar si es editable
@@ -325,7 +321,7 @@ def agregar_pago(current_user, evento_id):
 
     return jsonify({
         'message': 'Pago agregado',
-        'pago': pago.to_dict(),
+        'pago': enrich_pago_dict(pago.to_dict()),
         'resumen': calcular_resumen_precheck(evento)
     }), 201
 
@@ -362,7 +358,7 @@ def actualizar_pago(current_user, evento_id, pago_id):
 
     return jsonify({
         'message': 'Pago actualizado',
-        'pago': pago.to_dict(),
+        'pago': enrich_pago_dict(pago.to_dict()),
         'resumen': calcular_resumen_precheck(evento)
     }), 200
 
@@ -400,17 +396,9 @@ def eliminar_pago(current_user, evento_id, pago_id):
 
 # ==================== COMPROBANTES ====================
 
-def eliminar_archivo_bucket(url):
+def eliminar_archivo_bucket(blob_path):
     """Eliminar archivo del bucket de GCP"""
-    try:
-        # Extraer el nombre del blob de la URL
-        blob_name = url.split(f'{GCP_BUCKET_NAME}/')[-1]
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(GCP_BUCKET_NAME)
-        blob = bucket.blob(blob_name)
-        blob.delete()
-    except Exception as e:
-        print(f"Error eliminando archivo: {e}")
+    eliminar_archivo(blob_path)
 
 
 @precheck_bp.route('/<int:evento_id>/pagos/<int:pago_id>/comprobante', methods=['POST'])
@@ -448,24 +436,17 @@ def subir_comprobante(current_user, evento_id, pago_id):
     filename = f"comprobantes/{evento_id}/{pago_id}_{uuid.uuid4().hex}.{ext}"
 
     try:
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(GCP_BUCKET_NAME)
-        blob = bucket.blob(filename)
+        # Subir archivo y guardar blob path (NO URL pública)
+        blob_path = subir_archivo(file, filename, content_type=file.content_type)
 
-        # Subir archivo
-        blob.upload_from_file(file, content_type=file.content_type)
-
-        # Construir URL pública (bucket tiene acceso uniforme con IAM público)
-        url = f"https://storage.googleapis.com/{GCP_BUCKET_NAME}/{filename}"
-
-        # Actualizar pago
-        pago.comprobante_url = url
+        # Actualizar pago con el blob path
+        pago.comprobante_url = blob_path
         pago.comprobante_nombre = file.filename
         db.session.commit()
 
         return jsonify({
             'message': 'Comprobante subido',
-            'pago': pago.to_dict()
+            'pago': enrich_pago_dict(pago.to_dict())
         }), 200
 
     except Exception as e:
@@ -497,7 +478,7 @@ def eliminar_comprobante(current_user, evento_id, pago_id):
 
     return jsonify({
         'message': 'Comprobante eliminado',
-        'pago': pago.to_dict()
+        'pago': enrich_pago_dict(pago.to_dict())
     }), 200
 
 
@@ -583,7 +564,7 @@ def exportar_pdf(current_user, evento_id):
     # Obtener datos
     conceptos = [c.to_dict() for c in evento.precheck_conceptos.order_by(PrecheckConcepto.categoria, PrecheckConcepto.id)]
     adicionales = [a.to_dict() for a in evento.precheck_adicionales.order_by(PrecheckAdicional.categoria, PrecheckAdicional.id)]
-    pagos = [p.to_dict() for p in evento.precheck_pagos.order_by(PrecheckPago.fecha_pago.desc())]
+    pagos = [enrich_pago_dict(p.to_dict()) for p in evento.precheck_pagos.order_by(PrecheckPago.fecha_pago.desc())]
     resumen = calcular_resumen_precheck(evento)
 
     # Generar PDF

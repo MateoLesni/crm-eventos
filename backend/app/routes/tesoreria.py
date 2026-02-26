@@ -8,6 +8,7 @@ from app.models import Evento, Usuario
 from app.models_precheck import PrecheckPago
 from app.routes.auth import token_required
 from app.utils.timezone import ahora_argentina
+from app.utils.storage import enrich_pago_dict
 from decimal import Decimal
 from datetime import datetime, timedelta
 
@@ -34,13 +35,13 @@ def obtener_pagos_pendientes(current_user):
     result = []
     for pago in pagos:
         evento = pago.evento
-        result.append({
+        result.append(enrich_pago_dict({
             **pago.to_dict(),
             'evento_titulo': evento.titulo or evento.generar_titulo_auto(),
             'cliente_nombre': evento.cliente.nombre if evento.cliente else None,
             'local_nombre': evento.local.nombre if evento.local else None,
             'comercial_nombre': evento.comercial.nombre if evento.comercial else None,
-        })
+        }))
 
     return jsonify({
         'pagos': result,
@@ -65,13 +66,13 @@ def obtener_pagos_validados(current_user):
     result = []
     for pago in pagos:
         evento = pago.evento
-        result.append({
+        result.append(enrich_pago_dict({
             **pago.to_dict(),
             'evento_titulo': evento.titulo or evento.generar_titulo_auto(),
             'cliente_nombre': evento.cliente.nombre if evento.cliente else None,
             'local_nombre': evento.local.nombre if evento.local else None,
             'comercial_nombre': evento.comercial.nombre if evento.comercial else None,
-        })
+        }))
 
     return jsonify({'pagos': result}), 200
 
@@ -93,13 +94,13 @@ def obtener_pagos_rechazados(current_user):
     result = []
     for pago in pagos:
         evento = pago.evento
-        result.append({
+        result.append(enrich_pago_dict({
             **pago.to_dict(),
             'evento_titulo': evento.titulo or evento.generar_titulo_auto(),
             'cliente_nombre': evento.cliente.nombre if evento.cliente else None,
             'local_nombre': evento.local.nombre if evento.local else None,
             'comercial_nombre': evento.comercial.nombre if evento.comercial else None,
-        })
+        }))
 
     return jsonify({'pagos': result}), 200
 
@@ -148,7 +149,7 @@ def validar_pago(current_user, pago_id):
 
     return jsonify({
         'message': 'Pago validado correctamente',
-        'pago': pago.to_dict()
+        'pago': enrich_pago_dict(pago.to_dict())
     }), 200
 
 
@@ -181,5 +182,5 @@ def rechazar_pago(current_user, pago_id):
 
     return jsonify({
         'message': 'Pago rechazado',
-        'pago': pago.to_dict()
+        'pago': enrich_pago_dict(pago.to_dict())
     }), 200
