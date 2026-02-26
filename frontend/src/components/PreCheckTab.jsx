@@ -37,7 +37,6 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
   const [pagoForm, setPagoForm] = useState({
     metodo_pago: 'Transferencia',
     monto: 0,
-    fecha_pago: new Date().toISOString().split('T')[0],
     fecha_deposito: new Date().toISOString().split('T')[0],
     fecha_acreditacion: '',
     notas: ''
@@ -266,7 +265,6 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
     setPagoForm({
       metodo_pago: pago.metodo_pago,
       monto: pago.monto,
-      fecha_pago: pago.fecha_pago,
       fecha_deposito: pago.fecha_deposito || '',
       fecha_acreditacion: pago.fecha_acreditacion || '',
       notas: pago.notas || ''
@@ -300,7 +298,6 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
     setPagoForm({
       metodo_pago: 'Transferencia',
       monto: 0,
-      fecha_pago: new Date().toISOString().split('T')[0],
       fecha_deposito: new Date().toISOString().split('T')[0],
       fecha_acreditacion: '',
       notas: ''
@@ -682,7 +679,6 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
           <table className="precheck-table pagos-table">
             <thead>
               <tr>
-                <th>Fecha</th>
                 <th>F. Depósito</th>
                 <th>F. Acreditación</th>
                 <th>Método</th>
@@ -696,7 +692,6 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
             <tbody>
               {pagos.map((p) => (
                 <tr key={p.id}>
-                  <td>{new Date(p.fecha_pago).toLocaleDateString('es-AR')}</td>
                   <td>{p.fecha_deposito ? new Date(p.fecha_deposito).toLocaleDateString('es-AR') : '-'}</td>
                   <td>{p.fecha_acreditacion ? new Date(p.fecha_acreditacion).toLocaleDateString('es-AR') : '-'}</td>
                   <td>{p.metodo_pago}</td>
@@ -772,7 +767,7 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={4} className="text-right"><strong>Total Pagado:</strong></td>
+                <td colSpan={3} className="text-right"><strong>Total Pagado:</strong></td>
                 <td className="text-right"><strong>{formatearMoneda(resumen.total_pagado)}</strong></td>
                 <td colSpan={puede_editar_pagos ? 4 : 3}></td>
               </tr>
@@ -784,14 +779,6 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
         {showPagoForm && (
           <div className="form-inline">
             <div className="form-row form-row-labels">
-              <div className="form-field">
-                <label>Fecha pago</label>
-                <input
-                  type="date"
-                  value={pagoForm.fecha_pago}
-                  onChange={(e) => setPagoForm({ ...pagoForm, fecha_pago: e.target.value })}
-                />
-              </div>
               <div className="form-field">
                 <label>Fecha depósito *</label>
                 <input

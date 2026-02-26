@@ -3,8 +3,6 @@ import { tesoreriaApi } from '../services/api';
 import './Tesoreria.css';
 
 const FILTROS_INICIALES = {
-  fechaPagoDesde: '',
-  fechaPagoHasta: '',
   fechaDepositoDesde: '',
   fechaDepositoHasta: '',
   fechaAcreditacionDesde: '',
@@ -175,8 +173,6 @@ export default function Tesoreria() {
 
   // Filtrar pagos en memoria
   const pagosFiltrados = pagos.filter(p => {
-    if (filtros.fechaPagoDesde && p.fecha_pago < filtros.fechaPagoDesde) return false;
-    if (filtros.fechaPagoHasta && p.fecha_pago > filtros.fechaPagoHasta) return false;
     if (filtros.fechaDepositoDesde && (!p.fecha_deposito || p.fecha_deposito < filtros.fechaDepositoDesde)) return false;
     if (filtros.fechaDepositoHasta && (!p.fecha_deposito || p.fecha_deposito > filtros.fechaDepositoHasta)) return false;
     if (filtros.fechaAcreditacionDesde && (!p.fecha_acreditacion || p.fecha_acreditacion < filtros.fechaAcreditacionDesde)) return false;
@@ -275,22 +271,6 @@ export default function Tesoreria() {
       {mostrarFiltros && (
         <div className="tesoreria-filtros">
           <div className="filtros-grid">
-            <div className="filtro-group">
-              <label>Fecha pago desde</label>
-              <input
-                type="date"
-                value={filtros.fechaPagoDesde}
-                onChange={(e) => setFiltros({ ...filtros, fechaPagoDesde: e.target.value })}
-              />
-            </div>
-            <div className="filtro-group">
-              <label>Fecha pago hasta</label>
-              <input
-                type="date"
-                value={filtros.fechaPagoHasta}
-                onChange={(e) => setFiltros({ ...filtros, fechaPagoHasta: e.target.value })}
-              />
-            </div>
             <div className="filtro-group">
               <label>F. depósito desde</label>
               <input
@@ -399,7 +379,6 @@ export default function Tesoreria() {
           <table className="tesoreria-table">
             <thead>
               <tr>
-                <th>Fecha pago</th>
                 <th>F. Depósito</th>
                 <th>F. Acreditación</th>
                 <th>Evento</th>
@@ -417,7 +396,6 @@ export default function Tesoreria() {
             <tbody>
               {pagosFiltrados.map((pago) => (
                 <tr key={pago.id}>
-                  <td>{formatFecha(pago.fecha_pago)}</td>
                   <td>{formatFecha(pago.fecha_deposito)}</td>
                   <td>{formatFecha(pago.fecha_acreditacion)}</td>
                   <td className="evento-info">

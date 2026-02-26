@@ -303,18 +303,21 @@ def agregar_pago(current_user, evento_id):
         return jsonify({'error': 'Datos requeridos'}), 400
 
     # Validar campos requeridos
-    required = ['metodo_pago', 'monto', 'fecha_pago', 'fecha_deposito', 'fecha_acreditacion']
+    required = ['metodo_pago', 'monto', 'fecha_deposito', 'fecha_acreditacion']
     for field in required:
         if field not in data:
             return jsonify({'error': f'Campo {field} es requerido'}), 400
+
+    fecha_deposito = datetime.strptime(data['fecha_deposito'], '%Y-%m-%d').date()
+    fecha_acreditacion = datetime.strptime(data['fecha_acreditacion'], '%Y-%m-%d').date()
 
     pago = PrecheckPago(
         evento_id=evento_id,
         metodo_pago=data['metodo_pago'],
         monto=data['monto'],
-        fecha_pago=datetime.strptime(data['fecha_pago'], '%Y-%m-%d').date(),
-        fecha_deposito=datetime.strptime(data['fecha_deposito'], '%Y-%m-%d').date(),
-        fecha_acreditacion=datetime.strptime(data['fecha_acreditacion'], '%Y-%m-%d').date(),
+        fecha_pago=fecha_deposito,
+        fecha_deposito=fecha_deposito,
+        fecha_acreditacion=fecha_acreditacion,
         notas=data.get('notas')
     )
 
@@ -351,10 +354,10 @@ def actualizar_pago(current_user, evento_id, pago_id):
         pago.metodo_pago = data['metodo_pago']
     if 'monto' in data:
         pago.monto = data['monto']
-    if 'fecha_pago' in data:
-        pago.fecha_pago = datetime.strptime(data['fecha_pago'], '%Y-%m-%d').date()
     if 'fecha_deposito' in data:
-        pago.fecha_deposito = datetime.strptime(data['fecha_deposito'], '%Y-%m-%d').date()
+        fecha_dep = datetime.strptime(data['fecha_deposito'], '%Y-%m-%d').date()
+        pago.fecha_deposito = fecha_dep
+        pago.fecha_pago = fecha_dep  # sincronizar
     if 'fecha_acreditacion' in data:
         pago.fecha_acreditacion = datetime.strptime(data['fecha_acreditacion'], '%Y-%m-%d').date()
     if 'notas' in data:
