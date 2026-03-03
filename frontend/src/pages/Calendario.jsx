@@ -321,7 +321,7 @@ export default function Calendario() {
           </div>
           <div className="tooltip-cliente">{eventoHover.cliente_nombre}</div>
           <div className="tooltip-detalles">
-            <div><strong>Fecha:</strong> {formatearFecha(new Date(eventoHover.fecha_evento + 'T00:00:00'))}</div>
+            <div><strong>Fecha:</strong> {eventoHover.fecha_evento ? eventoHover.fecha_evento.split('-').reverse().join('/') : '-'}</div>
             <div><strong>Horario:</strong> {eventoHover.hora_inicio || '--:--'} - {eventoHover.hora_fin || '--:--'}</div>
             {eventoHover.cantidad_personas && (
               <div><strong>Personas:</strong> {eventoHover.cantidad_personas}</div>

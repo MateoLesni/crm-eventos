@@ -441,7 +441,7 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                       <label>Fecha</label>
                       <span>
                         {eventoDetalle?.fecha_evento
-                          ? new Date(eventoDetalle.fecha_evento + 'T00:00:00').toLocaleDateString('es-AR')
+                          ? eventoDetalle.fecha_evento.split('-').reverse().join('/')
                           : 'Sin definir'}
                       </span>
                     </div>
