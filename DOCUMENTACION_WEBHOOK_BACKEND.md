@@ -18,6 +18,7 @@ La clave para identificar de que vendedora viene cada mensaje es el campo `insta
 | `vendedora_juana` | Juana | 5491122905495 | Pendiente QR |
 | `vendedora_delfina` | Delfina | 5491140504258 | Pendiente QR |
 | `vendedora_traiana` | Traiana | 5491131642113 | Pendiente QR |
+| `vendedora_ignacio` | Ignacio | 5491128394047 | Pendiente QR |
 
 ---
 
@@ -97,6 +98,7 @@ VENDEDORAS = {
     'vendedora_juana':    {'nombre': 'Juana',     'numero': '5491122905495'},
     'vendedora_delfina':  {'nombre': 'Delfina',   'numero': '5491140504258'},
     'vendedora_traiana':  {'nombre': 'Traiana',   'numero': '5491131642113'},
+    'vendedora_ignacio':  {'nombre': 'Ignacio',   'numero': '5491128394047'},
 }
 
 vendedora = VENDEDORAS.get(instance_name)
