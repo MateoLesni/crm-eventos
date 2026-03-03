@@ -125,6 +125,7 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
       await eventosApi.agregarActividad(evento.id, nuevaActividad);
       setNuevaActividad({ tipo: 'nota', contenido: '' });
       cargarDatos();
+      if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Error agregando actividad:', error);
     }
