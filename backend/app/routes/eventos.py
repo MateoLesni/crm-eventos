@@ -463,7 +463,10 @@ def actualizar_evento(id):
             elif campo in campos_nullable_time and valor:
                 valor = datetime.strptime(valor, '%H:%M').time()
             elif campo in campos_nullable_int and valor is not None:
-                valor = int(valor)
+                try:
+                    valor = int(valor)
+                except (ValueError, TypeError):
+                    valor = None
 
             setattr(evento, campo, valor)
 
