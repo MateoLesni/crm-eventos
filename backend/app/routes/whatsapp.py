@@ -16,6 +16,7 @@ whatsapp_bp = Blueprint('whatsapp', __name__)
 INSTANCIA_TELEFONO = {
     'vendedora_juana': '5491122905495',
     'vendedora_delfina': '5491140504258',
+    'vendedora_traiana': '5491131642113',
     'whatsapp_nuevo': '5491156574088',
 }
 
