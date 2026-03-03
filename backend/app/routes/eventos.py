@@ -579,6 +579,9 @@ def agregar_actividad(id):
         contenido=data.get('contenido')
     )
 
+    # Resetear SLA: la actividad manual demuestra gestión del evento
+    evento.fecha_ultimo_cambio_estado = ahora_argentina()
+
     db.session.add(actividad)
     db.session.commit()
 
