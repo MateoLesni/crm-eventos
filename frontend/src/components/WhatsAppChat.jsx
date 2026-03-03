@@ -129,22 +129,39 @@ export default function WhatsAppChat({
   };
 
   const renderSelectorVendedor = () => {
-    if (!isAdmin || conversaciones.length <= 1) return null;
+    if (!isAdmin) return null;
 
-    return (
-      <div className="wa-vendedor-selector">
-        {conversaciones.map(c => (
-          <button
-            key={c.id}
-            className={`wa-vendedor-tab ${c.id === conversacion?.id ? 'active' : ''}`}
-            onClick={() => cambiarConversacion(c)}
-          >
-            {c.vendedor_nombre || 'Sin asignar'}
-            <span className="wa-msg-count">{c.total_mensajes}</span>
-          </button>
-        ))}
-      </div>
-    );
+    // Múltiples conversaciones: tabs clickeables
+    if (conversaciones.length > 1) {
+      return (
+        <div className="wa-vendedor-selector">
+          {conversaciones.map(c => (
+            <button
+              key={c.id}
+              className={`wa-vendedor-tab ${c.id === conversacion?.id ? 'active' : ''}`}
+              onClick={() => cambiarConversacion(c)}
+            >
+              {c.vendedor_nombre || 'Sin asignar'}
+              <span className="wa-msg-count">{c.total_mensajes}</span>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // 1 sola conversación: indicador sutil del vendedor
+    if (conversacion?.vendedor_nombre) {
+      return (
+        <div className="wa-vendedor-indicator">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+          <span>Conversación de <strong>{conversacion.vendedor_nombre}</strong></span>
+        </div>
+      );
+    }
+
+    return null;
   };
 
   const renderChatBody = () => (

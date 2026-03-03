@@ -370,6 +370,28 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Indicador sutil de vendedor (1 sola conversación) */
+.wa-vendedor-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0f2f5;
+  padding: 6px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 12px;
+  color: #54656f;
+}
+
+.wa-vendedor-indicator svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.wa-vendedor-indicator strong {
+  color: #075e54;
+  font-weight: 600;
+}
+
 /* Refresh Button */
 .wa-refresh-btn {
   background: none;
