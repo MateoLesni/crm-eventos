@@ -332,6 +332,12 @@
   font-size: 12px;
 }
 
+.tabla-reporte td.tasa-cierre {
+  color: #075e54;
+  font-weight: 600;
+  font-size: 13px;
+}
+
 .tabla-reporte td.success {
   color: #10b981;
   font-weight: 600;
