@@ -721,7 +721,7 @@ def asignar_por_respuesta():
     # Asignar comercial al evento
     estado_anterior = evento.estado
     evento.comercial_id = comercial.id
-    evento.estado = 'ASIGNADO'
+    evento.estado = calcular_estado_automatico(evento)
 
     # Registrar transición
     registrar_transicion(evento, estado_anterior, evento.estado, usuario_id=comercial.id, origen='n8n')
