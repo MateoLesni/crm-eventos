@@ -53,6 +53,9 @@ def obtener_reportes():
     # === COMERCIALES ===
     comerciales = calcular_comerciales(fecha_desde, fecha_hasta, campo_fecha)
 
+    # === DISTRIBUCIÓN POR LOCAL ===
+    locales_dist = calcular_distribucion_locales(fecha_desde, fecha_hasta, campo_fecha)
+
     return jsonify({
         'filtros': {
             'fecha_desde': fecha_desde.isoformat(),
@@ -63,7 +66,8 @@ def obtener_reportes():
         'kpis': kpis,
         'volumen_periodo': volumen_periodo,
         'canales_local': canales_local,
-        'comerciales': comerciales
+        'comerciales': comerciales,
+        'locales': locales_dist
     })
 
 
@@ -435,6 +439,102 @@ def calcular_comerciales(fecha_desde, fecha_hasta, campo_fecha=None):
 
     # Ordenar: Sin asignar primero, luego por total descendente
     filas.sort(key=lambda x: (x['comercial_id'] is not None, -x['total']))
+
+    return {
+        'filas': filas,
+        'totales': totales
+    }
+
+
+def calcular_distribucion_locales(fecha_desde, fecha_hasta, campo_fecha=None):
+    """Calcula la distribución de eventos por local (para medir efectividad de pauta)"""
+    if campo_fecha is None:
+        campo_fecha = Evento.created_at
+
+    # Query de eventos por local y estado (excluye ELIMINADOS)
+    query = db.session.query(
+        Evento.local_id,
+        Evento.estado,
+        func.count(Evento.id).label('cantidad')
+    ).filter(
+        func.date(campo_fecha) >= fecha_desde,
+        func.date(campo_fecha) <= fecha_hasta,
+        Evento.estado != 'ELIMINADO'
+    ).group_by(Evento.local_id, Evento.estado).all()
+
+    # Obtener locales activos para nombres/colores
+    locales = {l.id: l for l in Local.query.filter_by(activo=True).all()}
+
+    # Organizar datos
+    locales_data = {}
+
+    for row in query:
+        local_id = row.local_id
+        estado = row.estado.lower() if row.estado else 'consulta_entrante'
+        cantidad = row.cantidad or 0
+
+        if estado == 'concluido':
+            estado = 'aprobado'
+        if estado not in ('consulta_entrante', 'asignado', 'contactado', 'cotizado', 'aprobado', 'rechazado'):
+            continue
+
+        if local_id not in locales_data:
+            local_obj = locales.get(local_id)
+            locales_data[local_id] = {
+                'nombre': local_obj.nombre if local_obj else 'Sin local',
+                'color': local_obj.color if local_obj else None,
+                'consulta_entrante': 0,
+                'asignado': 0,
+                'contactado': 0,
+                'cotizado': 0,
+                'aprobado': 0,
+                'rechazado': 0,
+                'total': 0
+            }
+
+        locales_data[local_id][estado] += cantidad
+        locales_data[local_id]['total'] += cantidad
+
+    # Calcular totales
+    totales = {
+        'consulta_entrante': 0,
+        'asignado': 0,
+        'contactado': 0,
+        'cotizado': 0,
+        'aprobado': 0,
+        'rechazado': 0,
+        'total': 0
+    }
+
+    total_general = sum(d['total'] for d in locales_data.values())
+
+    filas = []
+    for local_id, data in locales_data.items():
+        participacion = round(data['total'] / total_general * 100, 1) if total_general > 0 else 0
+        decididos = data['aprobado'] + data['rechazado']
+        tasa_cierre = round(data['aprobado'] / decididos * 100, 1) if decididos > 0 else 0
+
+        fila = {
+            'local_id': local_id,
+            'nombre': data['nombre'],
+            'color': data['color'],
+            'consulta_entrante': data['consulta_entrante'],
+            'asignado': data['asignado'],
+            'contactado': data['contactado'],
+            'cotizado': data['cotizado'],
+            'aprobado': data['aprobado'],
+            'rechazado': data['rechazado'],
+            'total': data['total'],
+            'participacion': participacion,
+            'tasa_cierre': tasa_cierre
+        }
+        filas.append(fila)
+
+        for key in totales:
+            totales[key] += data.get(key, 0)
+
+    # Ordenar: Sin local primero, luego por total descendente
+    filas.sort(key=lambda x: (x['local_id'] is not None, -x['total']))
 
     return {
         'filas': filas,

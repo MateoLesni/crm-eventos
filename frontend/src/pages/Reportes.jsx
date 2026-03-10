@@ -71,11 +71,12 @@ export default function Reportes() {
     return <div className="reportes-error">Error al cargar reportes</div>;
   }
 
-  const { kpis, volumen_periodo, comerciales } = data;
+  const { kpis, volumen_periodo, comerciales, locales } = data;
 
   // Calcular máximo para barras proporcionales
   const maxVolumen = Math.max(...volumen_periodo.filas.map(f => f.total), 1);
   const maxComercial = Math.max(...comerciales.filas.map(f => f.total), 1);
+  const maxLocal = locales?.filas?.length > 0 ? Math.max(...locales.filas.map(f => f.total), 1) : 1;
 
   // Período mostrado
   const periodoTexto = `${formatearFecha(filtros.fecha_desde)} - ${formatearFecha(filtros.fecha_hasta)}`;
@@ -354,6 +355,100 @@ export default function Reportes() {
           </table>
         </div>
       </div>
+
+      {/* Distribución por Local */}
+      {locales?.filas?.length > 0 && (
+        <div className="reporte-seccion">
+          <div className="seccion-header">
+            <h2>Distribución por Local</h2>
+            <p className="seccion-desc">
+              Cantidad de eventos por local. Permite medir dónde la pauta está siendo más efectiva.
+            </p>
+          </div>
+          <div className="tabla-container">
+            <table className="tabla-reporte">
+              <thead>
+                <tr>
+                  <th>Local</th>
+                  <th>Total</th>
+                  <th>Entrante</th>
+                  <th>Asignado</th>
+                  <th>Contactado</th>
+                  <th>Cotizado</th>
+                  <th className="col-success">Aprobado</th>
+                  <th className="col-danger">Rechazado</th>
+                  <th>% Cierre</th>
+                  <th>Part.</th>
+                  <th className="col-bar">Composición</th>
+                </tr>
+              </thead>
+              <tbody>
+                {locales.filas.map((fila, idx) => {
+                  const decididos = fila.aprobado + fila.rechazado;
+                  const tasaCierre = decididos > 0 ? ((fila.aprobado / decididos) * 100).toFixed(1) : '-';
+                  return (
+                    <tr key={idx} className={fila.local_id === null ? 'fila-sin-asignar' : ''}>
+                      <td className="comercial">
+                        {fila.color && (
+                          <span className="local-color-dot" style={{ background: fila.color }}></span>
+                        )}
+                        {fila.nombre}
+                      </td>
+                      <td className="total">{fila.total}</td>
+                      <td>{fila.consulta_entrante}</td>
+                      <td>{fila.asignado}</td>
+                      <td>{fila.contactado}</td>
+                      <td>{fila.cotizado}</td>
+                      <td className="success">{fila.aprobado}</td>
+                      <td className="danger">{fila.rechazado}</td>
+                      <td className="tasa-cierre">{tasaCierre !== '-' ? `${tasaCierre}%` : '-'}</td>
+                      <td className="porcentaje">{fila.participacion}%</td>
+                      <td className="col-bar">
+                        {fila.total > 0 && (
+                          <div className="bar-container">
+                            <div
+                              className="bar"
+                              style={{ width: `${(fila.total / maxLocal) * 100}%` }}
+                            >
+                              {fila.aprobado > 0 && <div className="bar-segment aprobado" style={{ width: `${(fila.aprobado / fila.total) * 100}%` }}></div>}
+                              {fila.cotizado > 0 && <div className="bar-segment cotizado" style={{ width: `${(fila.cotizado / fila.total) * 100}%` }}></div>}
+                              {fila.contactado > 0 && <div className="bar-segment contactado" style={{ width: `${(fila.contactado / fila.total) * 100}%` }}></div>}
+                              {fila.asignado > 0 && <div className="bar-segment asignado" style={{ width: `${(fila.asignado / fila.total) * 100}%` }}></div>}
+                              {fila.consulta_entrante > 0 && <div className="bar-segment entrante" style={{ width: `${(fila.consulta_entrante / fila.total) * 100}%` }}></div>}
+                              {fila.rechazado > 0 && <div className="bar-segment rechazado" style={{ width: `${(fila.rechazado / fila.total) * 100}%` }}></div>}
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                {(() => {
+                  const totalDecididos = locales.totales.aprobado + locales.totales.rechazado;
+                  const tasaCierreTotal = totalDecididos > 0 ? ((locales.totales.aprobado / totalDecididos) * 100).toFixed(1) : '-';
+                  return (
+                    <tr className="fila-totales">
+                      <td>TOTAL</td>
+                      <td className="total">{locales.totales.total}</td>
+                      <td>{locales.totales.consulta_entrante}</td>
+                      <td>{locales.totales.asignado}</td>
+                      <td>{locales.totales.contactado}</td>
+                      <td>{locales.totales.cotizado}</td>
+                      <td className="success">{locales.totales.aprobado}</td>
+                      <td className="danger">{locales.totales.rechazado}</td>
+                      <td className="tasa-cierre">{tasaCierreTotal !== '-' ? `${tasaCierreTotal}%` : '-'}</td>
+                      <td>100%</td>
+                      <td></td>
+                    </tr>
+                  );
+                })()}
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Leyenda de estados */}
       <div className="leyenda">

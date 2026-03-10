@@ -394,6 +394,16 @@
   color: #9ca3af;
 }
 
+/* Local color dot */
+.local-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
 /* Barras CSS */
 .col-bar {
   width: 180px;

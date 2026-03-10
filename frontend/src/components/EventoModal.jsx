@@ -347,6 +347,9 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
             <span className={`badge-estado estado-${eventoDetalle?.estado?.toLowerCase()}`}>
               {eventoDetalle?.estado}
             </span>
+            {eventoDetalle?.id && (
+              <span className="evento-id-badge">#{eventoDetalle.id}</span>
+            )}
           </div>
 
           {showGuardado && (

@@ -72,6 +72,14 @@
   color: #111827;
 }
 
+.evento-id-badge {
+  margin-left: auto;
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+  font-family: monospace;
+}
+
 .badge-recurrente-large {
   background-color: #dbeafe;
   color: #1d4ed8;
