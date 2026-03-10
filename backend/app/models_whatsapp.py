@@ -105,6 +105,9 @@ class WAMensaje(db.Model):
     Tabla: mensajes
     """
     __tablename__ = 'mensajes'
+    __table_args__ = (
+        db.Index('idx_mensajes_conv_timestamp', 'conversacion_id', 'timestamp'),
+    )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     conversacion_id = db.Column(db.Integer, db.ForeignKey('conversaciones.id', ondelete='CASCADE'), nullable=False, index=True)

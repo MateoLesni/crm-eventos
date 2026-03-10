@@ -490,10 +490,17 @@ def obtener_conversacion_por_numero(numero):
                     conv_activa = c
                     break
 
-        # Obtener mensajes de la conversacion activa
+        # Obtener mensajes de la conversacion activa (sin mensaje_completo_json para reducir memoria)
         limit = request.args.get('limit', 100, type=int)
-        mensajes = WAMensaje.query.filter_by(
-            conversacion_id=conv_activa.id
+        mensajes = db.session.query(
+            WAMensaje.id,
+            WAMensaje.texto,
+            WAMensaje.tipo_mensaje,
+            WAMensaje.es_enviado,
+            WAMensaje.fecha_mensaje,
+            WAMensaje.timestamp
+        ).filter(
+            WAMensaje.conversacion_id == conv_activa.id
         ).order_by(WAMensaje.timestamp.asc()).limit(limit).all()
 
         return jsonify({
@@ -529,7 +536,7 @@ def obtener_conversacion_por_numero(numero):
                 'es_enviado': bool(msg.es_enviado),
                 'fecha': msg.fecha_mensaje.isoformat() if msg.fecha_mensaje else None,
                 'timestamp': msg.timestamp or 0
-            } for msg in mensajes]
+            } for msg in mensajes]  # msg es NamedTuple de columnas seleccionadas
         }), 200
 
     except Exception as e:
