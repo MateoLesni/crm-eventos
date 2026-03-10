@@ -53,8 +53,8 @@ def obtener_reportes():
     # === COMERCIALES ===
     comerciales = calcular_comerciales(fecha_desde, fecha_hasta, campo_fecha)
 
-    # === DISTRIBUCIÓN POR LOCAL ===
-    locales_dist = calcular_distribucion_locales(fecha_desde, fecha_hasta, campo_fecha)
+    # === DISTRIBUCIÓN POR LOCAL (siempre por fecha de carga) ===
+    locales_dist = calcular_distribucion_locales(fecha_desde, fecha_hasta, agrupacion)
 
     return jsonify({
         'filtros': {
@@ -446,99 +446,89 @@ def calcular_comerciales(fecha_desde, fecha_hasta, campo_fecha=None):
     }
 
 
-def calcular_distribucion_locales(fecha_desde, fecha_hasta, campo_fecha=None):
-    """Calcula la distribución de eventos por local (para medir efectividad de pauta)"""
-    if campo_fecha is None:
-        campo_fecha = Evento.created_at
+def calcular_distribucion_locales(fecha_desde, fecha_hasta, agrupacion='diario'):
+    """
+    Tabla cruzada: filas = fechas de carga (created_at), columnas = locales.
+    Siempre usa fecha de carga para medir efectividad de pauta.
+    """
+    # Siempre fecha de carga
+    campo_fecha = Evento.created_at
 
-    # Query de eventos por local y estado (excluye ELIMINADOS)
+    if agrupacion == 'semanal':
+        date_trunc = func.date(campo_fecha - func.strftime('%w', campo_fecha) + 1)
+    else:
+        date_trunc = func.date(campo_fecha)
+
+    # Query: fecha x local_id -> cantidad (excluye ELIMINADOS)
     query = db.session.query(
+        date_trunc.label('fecha'),
         Evento.local_id,
-        Evento.estado,
         func.count(Evento.id).label('cantidad')
     ).filter(
         func.date(campo_fecha) >= fecha_desde,
         func.date(campo_fecha) <= fecha_hasta,
         Evento.estado != 'ELIMINADO'
-    ).group_by(Evento.local_id, Evento.estado).all()
+    ).group_by(date_trunc, Evento.local_id).all()
 
     # Obtener locales activos para nombres/colores
-    locales = {l.id: l for l in Local.query.filter_by(activo=True).all()}
+    locales_db = Local.query.filter_by(activo=True).order_by(Local.nombre).all()
+    locales_map = {l.id: l for l in locales_db}
 
-    # Organizar datos
-    locales_data = {}
+    # Recopilar todos los local_ids que aparecen (incluyendo None = Sin local)
+    local_ids_vistos = set()
+    fechas_data = {}
 
     for row in query:
+        fecha = row.fecha if isinstance(row.fecha, str) else row.fecha.isoformat() if row.fecha else None
         local_id = row.local_id
-        estado = row.estado.lower() if row.estado else 'consulta_entrante'
         cantidad = row.cantidad or 0
 
-        if estado == 'concluido':
-            estado = 'aprobado'
-        if estado not in ('consulta_entrante', 'asignado', 'contactado', 'cotizado', 'aprobado', 'rechazado'):
-            continue
+        local_ids_vistos.add(local_id)
 
-        if local_id not in locales_data:
-            local_obj = locales.get(local_id)
-            locales_data[local_id] = {
-                'nombre': local_obj.nombre if local_obj else 'Sin local',
-                'color': local_obj.color if local_obj else None,
-                'consulta_entrante': 0,
-                'asignado': 0,
-                'contactado': 0,
-                'cotizado': 0,
-                'aprobado': 0,
-                'rechazado': 0,
-                'total': 0
-            }
+        if fecha not in fechas_data:
+            fechas_data[fecha] = {'total': 0, 'locales': {}}
 
-        locales_data[local_id][estado] += cantidad
-        locales_data[local_id]['total'] += cantidad
+        fechas_data[fecha]['locales'][local_id] = fechas_data[fecha]['locales'].get(local_id, 0) + cantidad
+        fechas_data[fecha]['total'] += cantidad
 
-    # Calcular totales
-    totales = {
-        'consulta_entrante': 0,
-        'asignado': 0,
-        'contactado': 0,
-        'cotizado': 0,
-        'aprobado': 0,
-        'rechazado': 0,
-        'total': 0
-    }
+    # Construir lista de columnas (locales), None primero, luego por nombre
+    columnas = []
+    if None in local_ids_vistos:
+        columnas.append({'id': None, 'nombre': 'Sin local', 'color': None})
+    for local in locales_db:
+        if local.id in local_ids_vistos:
+            columnas.append({'id': local.id, 'nombre': local.nombre, 'color': local.color})
 
-    total_general = sum(d['total'] for d in locales_data.values())
-
+    # Construir filas ordenadas por fecha desc
     filas = []
-    for local_id, data in locales_data.items():
-        participacion = round(data['total'] / total_general * 100, 1) if total_general > 0 else 0
-        decididos = data['aprobado'] + data['rechazado']
-        tasa_cierre = round(data['aprobado'] / decididos * 100, 1) if decididos > 0 else 0
+    totales_por_local = {c['id']: 0 for c in columnas}
+    total_general = 0
 
+    for fecha in sorted(fechas_data.keys(), reverse=True):
+        data = fechas_data[fecha]
         fila = {
-            'local_id': local_id,
-            'nombre': data['nombre'],
-            'color': data['color'],
-            'consulta_entrante': data['consulta_entrante'],
-            'asignado': data['asignado'],
-            'contactado': data['contactado'],
-            'cotizado': data['cotizado'],
-            'aprobado': data['aprobado'],
-            'rechazado': data['rechazado'],
+            'fecha': fecha,
             'total': data['total'],
-            'participacion': participacion,
-            'tasa_cierre': tasa_cierre
+            'locales': {}
         }
+        for col in columnas:
+            cant = data['locales'].get(col['id'], 0)
+            fila['locales'][str(col['id'])] = cant
+            totales_por_local[col['id']] += cant
+
         filas.append(fila)
+        total_general += data['total']
 
-        for key in totales:
-            totales[key] += data.get(key, 0)
-
-    # Ordenar: Sin local primero, luego por total descendente
-    filas.sort(key=lambda x: (x['local_id'] is not None, -x['total']))
+    # Totales serializables (keys como string para JSON)
+    totales_serial = {}
+    for col in columnas:
+        totales_serial[str(col['id'])] = totales_por_local[col['id']]
 
     return {
+        'columnas': columnas,
         'filas': filas,
-        'totales': totales
+        'totales_por_local': totales_serial,
+        'total_general': total_general
     }
 
 

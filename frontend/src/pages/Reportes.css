@@ -380,28 +380,12 @@
 /* Columnas de locales */
 .col-local-data {
   text-align: center;
-}
-
-.col-local-data .cantidad {
-  display: block;
   font-weight: 500;
   color: #172b4d;
 }
 
-.col-local-data .porcentaje-mini {
-  display: block;
-  font-size: 10px;
-  color: #9ca3af;
-}
-
-/* Local color dot */
-.local-color-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 6px;
-  vertical-align: middle;
+.tabla-locales th {
+  min-width: 70px;
 }
 
 /* Barras CSS */
