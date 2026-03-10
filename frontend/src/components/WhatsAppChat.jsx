@@ -54,10 +54,12 @@ export default function WhatsAppChat({
       }
     } catch (err) {
       console.error('Error cargando conversacion:', err);
+      console.error('Response data:', err.response?.data);
       if (err.response?.status === 404 || err.response?.data?.found === false) {
         setNoEncontrado(true);
       } else {
-        setError('Error al cargar la conversacion');
+        const detalle = err.response?.data?.error || err.message || '';
+        setError(`Error al cargar la conversacion${detalle ? `: ${detalle}` : ''}`);
       }
     } finally {
       setLoading(false);

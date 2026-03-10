@@ -524,18 +524,23 @@ def obtener_conversacion_por_numero(numero):
             } for c in conversaciones],
             'mensajes': [{
                 'id': msg.id,
-                'texto': msg.texto,
-                'tipo': msg.tipo_mensaje,
-                'es_enviado': msg.es_enviado,
+                'texto': msg.texto or '',
+                'tipo': msg.tipo_mensaje or 'text',
+                'es_enviado': bool(msg.es_enviado),
                 'fecha': msg.fecha_mensaje.isoformat() if msg.fecha_mensaje else None,
-                'timestamp': msg.timestamp
+                'timestamp': msg.timestamp or 0
             } for msg in mensajes]
         }), 200
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'error': str(e),
+            'found': False,
+            'numero_original': numero,
+            'detalle': traceback.format_exc()
+        }), 500
 
 
 @whatsapp_bp.route('/stats', methods=['GET'])
