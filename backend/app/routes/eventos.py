@@ -702,14 +702,6 @@ def asignar_por_respuesta():
             'thread_id': thread_id
         }), 404
 
-    # Si ya tiene comercial asignado, no hacer nada (evitar sobrescribir)
-    if evento.comercial_id:
-        return jsonify({
-            'message': 'Evento ya tiene comercial asignado',
-            'evento': evento.to_dict(include_counts=True),
-            'ya_asignado': True
-        }), 200
-
     # Buscar comercial por email
     comercial = Usuario.query.filter_by(email=mail_comercial, activo=True).first()
     if not comercial:
