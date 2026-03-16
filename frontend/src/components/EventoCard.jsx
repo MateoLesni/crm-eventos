@@ -188,7 +188,7 @@ export default function EventoCard({ evento, onClick, onPrecheckClick, onEtiquet
       </div>
 
       <div className="card-footer">
-        <div className="card-avatar" style={{ backgroundColor: avatarColor }}>
+        <div className="card-avatar" style={{ backgroundColor: avatarColor }} title={evento.comercial?.nombre || 'Sin asignar'}>
           {evento.comercial?.nombre?.charAt(0) || '?'}
         </div>
         <span className="card-monto">
