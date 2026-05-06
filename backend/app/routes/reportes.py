@@ -470,8 +470,8 @@ def calcular_distribucion_locales(fecha_desde, fecha_hasta, agrupacion='diario')
         Evento.estado != 'ELIMINADO'
     ).group_by(date_trunc, Evento.local_id).all()
 
-    # Obtener locales activos para nombres/colores
-    locales_db = Local.query.filter_by(activo=True).order_by(Local.nombre).all()
+    # Obtener TODOS los locales para nombres/colores (incluyendo inactivos con eventos)
+    locales_db = Local.query.order_by(Local.nombre).all()
     locales_map = {l.id: l for l in locales_db}
 
     # Recopilar todos los local_ids que aparecen (incluyendo None = Sin local)
@@ -495,9 +495,15 @@ def calcular_distribucion_locales(fecha_desde, fecha_hasta, agrupacion='diario')
     columnas = []
     if None in local_ids_vistos:
         columnas.append({'id': None, 'nombre': 'Sin local', 'color': None})
+    ids_agregados = {None}
     for local in locales_db:
         if local.id in local_ids_vistos:
             columnas.append({'id': local.id, 'nombre': local.nombre, 'color': local.color})
+            ids_agregados.add(local.id)
+    # Locales con eventos pero sin registro en tabla locales (eliminados físicamente)
+    for local_id in local_ids_vistos:
+        if local_id not in ids_agregados:
+            columnas.append({'id': local_id, 'nombre': f'Local #{local_id}', 'color': None})
 
     # Construir filas ordenadas por fecha desc
     filas = []

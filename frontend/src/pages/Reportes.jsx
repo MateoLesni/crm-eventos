@@ -385,7 +385,7 @@ export default function Reportes() {
                       const cant = fila.locales[String(col.id)] || 0;
                       return (
                         <td key={String(col.id)} className={cant > 0 ? 'col-local-data' : ''}>
-                          {cant > 0 ? cant : <span style={{ color: '#d1d5db' }}>-</span>}
+                          {cant > 0 ? cant : <span style={{ color: '#d1d5db' }}>0</span>}
                         </td>
                       );
                     })}

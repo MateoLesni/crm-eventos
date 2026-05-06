@@ -461,7 +461,9 @@ def actualizar_evento(id):
             if campo in campos_nullable_date and valor:
                 valor = datetime.strptime(valor, '%Y-%m-%d').date()
             elif campo in campos_nullable_time and valor:
-                valor = datetime.strptime(valor, '%H:%M').time()
+                # Soportar formatos HH:MM y HH:MM:SS
+                fmt = '%H:%M:%S' if valor.count(':') == 2 else '%H:%M'
+                valor = datetime.strptime(valor, fmt).time()
             elif campo in campos_nullable_int and valor is not None:
                 try:
                     valor = int(valor)
