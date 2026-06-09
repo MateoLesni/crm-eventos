@@ -131,7 +131,14 @@ export default function Reportes() {
           </button>
           <button
             className="btn-exportar-excel"
-            onClick={() => exportarReportesAExcel(data, filtros)}
+            onClick={async () => {
+              try {
+                await exportarReportesAExcel(data, filtros);
+              } catch (err) {
+                console.error('Error exportando a Excel:', err);
+                alert('Error al exportar a Excel');
+              }
+            }}
             disabled={!data}
             title="Exportar todos los reportes filtrados a Excel"
           >
