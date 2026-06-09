@@ -101,6 +101,28 @@
   background: #2563eb;
 }
 
+.btn-exportar-excel {
+  padding: 8px 20px;
+  background: #16a34a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-left: 8px;
+}
+
+.btn-exportar-excel:hover {
+  background: #15803d;
+}
+
+.btn-exportar-excel:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
 /* KPIs Section - Nueva estructura */
 .kpis-section {
   margin-bottom: 28px;
