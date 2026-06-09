@@ -370,7 +370,7 @@ export default function Reportes() {
                 <tr>
                   <th>Fecha carga</th>
                   {locales.columnas.map((col) => (
-                    <th key={String(col.id)} style={col.color ? { borderBottom: `3px solid ${col.color}` } : {}}>
+                    <th key={(col.id == null ? 'sin_local' : String(col.id))} style={col.color ? { borderBottom: `3px solid ${col.color}` } : {}}>
                       {col.nombre}
                     </th>
                   ))}
@@ -382,9 +382,9 @@ export default function Reportes() {
                   <tr key={idx}>
                     <td className="fecha">{formatearFecha(fila.fecha)}</td>
                     {locales.columnas.map((col) => {
-                      const cant = fila.locales[String(col.id)] || 0;
+                      const cant = fila.locales[(col.id == null ? 'sin_local' : String(col.id))] || 0;
                       return (
-                        <td key={String(col.id)} className={cant > 0 ? 'col-local-data' : ''}>
+                        <td key={(col.id == null ? 'sin_local' : String(col.id))} className={cant > 0 ? 'col-local-data' : ''}>
                           {cant > 0 ? cant : <span style={{ color: '#d1d5db' }}>0</span>}
                         </td>
                       );
@@ -398,8 +398,8 @@ export default function Reportes() {
                   <tr className="fila-totales">
                     <td>TOTAL</td>
                     {locales.columnas.map((col) => (
-                      <td key={String(col.id)} className="total">
-                        {locales.totales_por_local[String(col.id)] || 0}
+                      <td key={(col.id == null ? 'sin_local' : String(col.id))} className="total">
+                        {locales.totales_por_local[(col.id == null ? 'sin_local' : String(col.id))] || 0}
                       </td>
                     ))}
                     <td className="total">{locales.total_general}</td>

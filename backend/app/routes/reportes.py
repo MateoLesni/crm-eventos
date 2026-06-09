@@ -505,9 +505,13 @@ def calcular_distribucion_locales(fecha_desde, fecha_hasta, agrupacion='diario')
         if local_id not in ids_agregados:
             columnas.append({'id': local_id, 'nombre': f'Local #{local_id}', 'color': None})
 
+    def key_id(local_id):
+        # Normaliza None -> "sin_local" para que coincida con el frontend
+        return 'sin_local' if local_id is None else str(local_id)
+
     # Construir filas ordenadas por fecha desc
     filas = []
-    totales_por_local = {c['id']: 0 for c in columnas}
+    totales_por_local = {key_id(c['id']): 0 for c in columnas}
     total_general = 0
 
     for fecha in sorted(fechas_data.keys(), reverse=True):
@@ -518,17 +522,16 @@ def calcular_distribucion_locales(fecha_desde, fecha_hasta, agrupacion='diario')
             'locales': {}
         }
         for col in columnas:
+            k = key_id(col['id'])
             cant = data['locales'].get(col['id'], 0)
-            fila['locales'][str(col['id'])] = cant
-            totales_por_local[col['id']] += cant
+            fila['locales'][k] = cant
+            totales_por_local[k] += cant
 
         filas.append(fila)
         total_general += data['total']
 
     # Totales serializables (keys como string para JSON)
-    totales_serial = {}
-    for col in columnas:
-        totales_serial[str(col['id'])] = totales_por_local[col['id']]
+    totales_serial = {key_id(c['id']): totales_por_local[key_id(c['id'])] for c in columnas}
 
     return {
         'columnas': columnas,
