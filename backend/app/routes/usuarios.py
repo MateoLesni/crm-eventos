@@ -29,7 +29,8 @@ def crear_usuario():
     usuario = Usuario(
         nombre=data['nombre'],
         email=data['email'],
-        rol=data.get('rol', 'comercial')
+        rol=data.get('rol', 'comercial'),
+        telefono=data.get('telefono') or None
     )
     usuario.set_password(data['password'])
 
