@@ -56,6 +56,10 @@ def create_app():
     from app.routes.tesoreria import tesoreria_bp
     app.register_blueprint(tesoreria_bp, url_prefix='/api/tesoreria')
 
+    # Registrar blueprint de Export (consumidores externos con API key)
+    from app.routes.export import export_bp
+    app.register_blueprint(export_bp, url_prefix='/api/export')
+
     # Importar modelos para que SQLAlchemy los conozca
     from app import models  # Modelos del CRM
     from app import models_whatsapp  # Modelos de WhatsApp

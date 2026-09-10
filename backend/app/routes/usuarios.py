@@ -41,3 +41,27 @@ def crear_usuario():
         'message': 'Usuario creado',
         'usuario': usuario.to_dict()
     }), 201
+
+# PUT /api/usuarios/:id - Actualizar usuario (nombre, telefono, rol, activo)
+@usuarios_bp.route('/<int:id>', methods=['PUT'])
+def actualizar_usuario(id):
+    usuario = Usuario.query.get_or_404(id)
+    data = request.get_json()
+
+    if 'nombre' in data:
+        usuario.nombre = data['nombre']
+    if 'telefono' in data:
+        usuario.telefono = data['telefono'] or None
+    if 'rol' in data:
+        usuario.rol = data['rol']
+    if 'activo' in data:
+        usuario.activo = bool(data['activo'])
+    if data.get('password'):
+        usuario.set_password(data['password'])
+
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Usuario actualizado',
+        'usuario': usuario.to_dict()
+    })
