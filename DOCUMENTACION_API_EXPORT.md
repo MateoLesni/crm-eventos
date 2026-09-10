@@ -1,47 +1,37 @@
-# API de Export del CRM — Guía para el Dashboard
+# Doc API Export CRM
 
-Hola! Acá te dejo todo lo que necesitás para consumir los datos del CRM y armar el dashboard. Es una API REST de solo lectura, pensada para que puedas bajar todo el histórico una vez y después mantenerte sincronizado pidiendo solamente lo que cambió. Cualquier duda me escribís.
+Buenas! Acá va la doc para consumir los datos del CRM para el dashboard. Cualquier duda me escribís +5491156574088
 
-## Lo básico
+La idea general: es una API de solo lectura. Bajás todo el histórico una vez, y después vas pidiendo solo lo que cambió. Abajo te explico el flujo.
 
-- **URL base:** `https://crm-eventos-backend-656730419070.us-central1.run.app/api/export`
-- **Autenticación:** en cada request tenés que mandar el header `X-API-Key` con la clave que te paso por privado (no la compartas ni la subas a ningún repo público, por favor).
-- **Zona horaria:** todas las fechas y horas están en **hora argentina (UTC-3)**, en formato ISO (`2026-09-10T15:30:00`). No hay que convertir nada.
-- **Formato:** JSON.
+# Lo básico, con esto ya la usas
 
-## Endpoints
+- URL base: `https://crm-eventos-backend-656730419070.us-central1.run.app/api/export`
+- En todas las requests va el header `X-API-Key` con la clave que te paso por privado (no la subas a ningún repo ni la compartas)
+- Todas las fechas/horas van en hora argentina, formato ISO tipo `2026-09-10T15:30:00`. No hay que convertir nada de UTC ni esas cosas.
 
-### 1. `GET /ping` — para probar que estás conectado
-
-Sirve para verificar que la key funciona y ver la hora del servidor.
+# Para probar que andás conectado
 
 ```bash
 curl "https://crm-eventos-backend-656730419070.us-central1.run.app/api/export/ping" \
   -H "X-API-Key: TU_API_KEY"
 ```
 
-Respuesta:
-```json
-{
-  "status": "ok",
-  "server_time": "2026-09-10T13:06:53",
-  "timezone": "America/Argentina/Buenos_Aires (UTC-3)"
-}
-```
+Si te devuelve `status: ok` con la hora del server, estás. Si te da 401 es la key.
 
-### 2. `GET /eventos` — las tarjetas del pipeline
+# El endpoint principal: /eventos
 
-Este es el endpoint principal. Devuelve las tarjetas (eventos) con toda la info: datos del cliente, del evento, el vendedor asignado, el local, los montos y el estado en que está cada una.
+`GET /eventos` te devuelve las tarjetas del pipeline con todo: cliente, evento, vendedor, local, montos y el estado en que está cada una.
 
-**Parámetros:**
+Parámetros:
 
-| Parámetro | Qué hace | Default |
-|---|---|---|
-| `limit` | Cuántas tarjetas devuelve por llamada. Máximo 500 (si pedís más, igual te doy 500). | 200 |
-| `after_id` | Paginación: devuelve tarjetas con `id` mayor a este valor. Usá el `next_after_id` de la respuesta anterior. | 0 |
-| `updated_since` | Devuelve solo tarjetas que cambiaron desde esa fecha/hora (ISO, hora argentina). | — |
+| Parámetro | Qué hace |
+|---|---|
+| `limit` | cuántas tarjetas por llamada, máximo 500 (default 200) |
+| `after_id` | para paginar, devuelve las de id mayor a ese valor |
+| `updated_since` | solo las tarjetas que cambiaron desde esa fecha (ISO, hora argentina) |
 
-**Respuesta:**
+La respuesta viene así:
 
 ```json
 {
@@ -54,10 +44,9 @@ Este es el endpoint principal. Devuelve las tarjetas (eventos) con toda la info:
 }
 ```
 
-- `has_more`: si es `true`, hay más páginas — pedí la siguiente con `after_id=next_after_id`.
-- `server_time`: guardalo — es la fecha que vas a usar como `updated_since` en tu próxima sincronización.
+Si `has_more` es true, pedís la página siguiente con `after_id=next_after_id`. Y el `server_time` guardalo que es tu próximo `updated_since` (después se entiende).
 
-**Cada evento viene así:**
+Cada evento tiene esta pinta:
 
 ```json
 {
@@ -95,63 +84,54 @@ Este es el endpoint principal. Devuelve las tarjetas (eventos) con toda la info:
 }
 ```
 
-**Los estados posibles de una tarjeta:** `CONSULTA_ENTRANTE`, `ASIGNADO`, `CONTACTADO`, `COTIZADO`, `APROBADO`, `RECHAZADO`, `MULTIRESERVA`, `CONCLUIDO`, `ELIMINADO`.
+Aclaraciones sueltas que te van a servir:
 
-- `fecha_creacion` es cuando entró la consulta (se creó la tarjeta).
-- `fecha_evento` es la fecha del evento en sí.
-- `fecha_actualizacion` es la última vez que la tarjeta cambió (cualquier campo).
-- `local` o `vendedor` pueden venir `null` si la tarjeta todavía no tiene asignado uno.
+- Los estados posibles son: CONSULTA_ENTRANTE, ASIGNADO, CONTACTADO, COTIZADO, APROBADO, RECHAZADO, MULTIRESERVA, CONCLUIDO, ELIMINADO
+- `fecha_creacion` es cuando entró la consulta (o sea cuando se creó la tarjeta), `fecha_evento` es la fecha del evento en sí. No confundir.
+- `fecha_actualizacion` es la última vez que se tocó la tarjeta, lo que sea
+- `local` o `vendedor` pueden venir null si la tarjeta todavía no los tiene asignados, tenelo en cuenta en tu código
+- el presupuesto viene como número, en pesos
 
-## Cómo tenés que consumirlo (importante)
+# Cómo consumirlo bien
 
-La idea es que NO pidas todo el histórico cada vez que refresca tu dashboard. El flujo correcto es:
+Esto es lo importante. NO quiero que el dashboard pida todo el histórico cada vez que refresca, para eso está el modo incremental.
 
-**Paso 1 — Carga inicial (una sola vez):**
-
-Bajá todo el histórico paginando:
+Primera vez (una sola vez en la vida):
 
 ```
 GET /eventos?limit=500&after_id=0
-GET /eventos?limit=500&after_id=<next_after_id>
-... hasta que has_more sea false
+GET /eventos?limit=500&after_id=<el next_after_id que te vino>
+... y así hasta que has_more venga false
 ```
 
-Guardá el `server_time` de la primera llamada.
+Guardate el server_time de la primera llamada.
 
-**Paso 2 — Sincronización (cada vez que quieras actualizar):**
+De ahí en adelante, cada vez que quieras refrescar:
 
 ```
 GET /eventos?updated_since=<el server_time que guardaste>&limit=500
 ```
 
-Te van a venir solo las tarjetas que cambiaron desde entonces (normalmente un puñado). Actualizás esas en tu base local (upsert por `id`) y guardás el nuevo `server_time` para la próxima. Con sincronizar cada 5-10 minutos va sobrado para un dashboard.
+Te vienen solo las tarjetas que cambiaron desde entonces (normalmente son pocas o ninguna). Las pisás en tu base local usando el `id` como clave (upsert), guardás el server_time nuevo y listo. Sincronizando cada 5 o 10 minutos va más que sobrado para un dashboard.
 
-Ojo: una tarjeta que ya tenías puede venir de nuevo en el incremental (porque cambió de estado, de monto, etc.). Siempre pisá la versión vieja con la nueva usando el `id` como clave.
+Ojo: en el incremental te puede venir una tarjeta que ya tenías (porque cambió de estado, de monto, lo que sea). Siempre pisá la vieja con la nueva.
 
-## Límites (leelos, en serio)
+# Límites
 
-Para cuidar la base de datos productiva, la API tiene estas protecciones y las aplica automáticamente:
+La base es la productiva del CRM así que le puse límites, los aplica el servidor solo:
 
-- **Máximo 30 requests por minuto.** Si te pasás, recibís un `429` con el header `Retry-After` diciéndote cuántos segundos esperar. No insistas en loop: esperá y reintentá.
-- **Máximo 500 filas por request.** `limit` mayor se capea solo.
-- **Cache de 60 segundos:** si pedís exactamente lo mismo dos veces en menos de un minuto, la segunda respuesta puede ser la cacheada. Por eso no tiene sentido consultar más seguido que eso.
-- **Sin key o key incorrecta:** `401`.
+- máximo 30 requests por minuto → si te pasás recibís un 429 con el header `Retry-After` que te dice cuántos segundos esperar. No reintentes en loop, esperá y volvé a probar.
+- máximo 500 filas por request, si pedís más se capea solo
+- hay un cache de 60 segundos, si pedís lo mismo dos veces seguidas la segunda puede salir del cache. Por eso tampoco tiene sentido consultar más seguido que eso.
 
-Si tu dashboard hace las cosas bien (carga inicial una vez + incrementales), nunca vas a tocar estos límites.
+Si hacés el flujo como te expliqué arriba no vas a tocar ninguno de estos límites nunca.
 
-## Errores
+Errores que te podés encontrar: 401 es la key (revisá el header), 400 es un parámetro mal formado (el mensaje te dice cuál), 429 es que te pasaste de requests, y si ves un 503 avisame que es un tema de config nuestro.
 
-| Código | Qué significa | Qué hacer |
-|---|---|---|
-| `401` | API key ausente o incorrecta | Revisá el header `X-API-Key` |
-| `400` | Parámetro mal formado | El mensaje te dice cuál |
-| `429` | Demasiadas requests | Esperá lo que diga `Retry-After` |
-| `503` | Export deshabilitado | Avisame, es un tema de configuración nuestro |
+# Qué no está
 
-## Qué NO está en esta API
+Conversaciones de WhatsApp y Gmail, comprobantes, pagos y todo lo de tesorería. Eso queda afuera del export. Si más adelante necesitás algún dato más para el dashboard, hablemos y vemos de sumarlo.
 
-Conversaciones de WhatsApp y Gmail, comprobantes de pago, datos de tesorería y presupuestos operativos internos. Si en algún momento necesitás algo más para el dashboard, hablémoslo y vemos si lo sumamos al contrato.
+Cualquier cosa me escribís.
 
----
-
-*Cualquier cosa que no funcione como dice acá, avisame directamente. — Mateo*
+Mateo
