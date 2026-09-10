@@ -1,23 +1,23 @@
 # Doc API Export CRM
 
-Buenas! Acá va la doc para consumir los datos del CRM para el dashboard. Cualquier duda me escribís +5491156574088
+Buenas! Esta es la doc para consumir los datos del CRM para el dashboard. Cualquier duda me escribís +5491156574088
 
-La idea general: es una API de solo lectura. Bajás todo el histórico una vez, y después vas pidiendo solo lo que cambió. Abajo te explico el flujo.
+La idea general es que es una API de solo lectura. Bajás todo el histórico una vez, y después vas pidiendo solo lo que cambió. Abajo te explico el flujo.
 
-# Lo básico, con esto ya la usas
+# Básico
 
 - URL base: `https://crm-eventos-backend-656730419070.us-central1.run.app/api/export`
 - En todas las requests va el header `X-API-Key` con la clave que te paso por privado (no la subas a ningún repo ni la compartas)
 - Todas las fechas/horas van en hora argentina, formato ISO tipo `2026-09-10T15:30:00`. No hay que convertir nada de UTC ni esas cosas.
 
-# Para probar que andás conectado
+# Para probar que estés conectado
 
 ```bash
 curl "https://crm-eventos-backend-656730419070.us-central1.run.app/api/export/ping" \
   -H "X-API-Key: TU_API_KEY"
 ```
 
-Si te devuelve `status: ok` con la hora del server, estás. Si te da 401 es la key.
+Si te devuelve `status: ok` con la hora del server, estaria bien. Si te da 401 es la key.
 
 # El endpoint principal: /eventos
 
@@ -114,7 +114,7 @@ GET /eventos?updated_since=<el server_time que guardaste>&limit=500
 
 Te vienen solo las tarjetas que cambiaron desde entonces (normalmente son pocas o ninguna). Las pisás en tu base local usando el `id` como clave (upsert), guardás el server_time nuevo y listo. Sincronizando cada 5 o 10 minutos va más que sobrado para un dashboard.
 
-Ojo: en el incremental te puede venir una tarjeta que ya tenías (porque cambió de estado, de monto, lo que sea). Siempre pisá la vieja con la nueva.
+Ojo que en el incremental te puede venir una tarjeta que ya tenías (porque cambió de estado, de monto, lo que sea). Siempre pisá la vieja con la nueva.
 
 # Límites
 
@@ -128,10 +128,7 @@ Si hacés el flujo como te expliqué arriba no vas a tocar ninguno de estos lím
 
 Errores que te podés encontrar: 401 es la key (revisá el header), 400 es un parámetro mal formado (el mensaje te dice cuál), 429 es que te pasaste de requests, y si ves un 503 avisame que es un tema de config nuestro.
 
-# Qué no está
 
-Conversaciones de WhatsApp y Gmail, comprobantes, pagos y todo lo de tesorería. Eso queda afuera del export. Si más adelante necesitás algún dato más para el dashboard, hablemos y vemos de sumarlo.
-
-Cualquier cosa me escribís.
+Con esta info te deberías poder manejar pero, cualquier cosa me escribís.
 
 Mateo
