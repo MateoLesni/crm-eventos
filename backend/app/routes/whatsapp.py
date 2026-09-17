@@ -20,6 +20,7 @@ INSTANCIA_TELEFONO = {
     'vendedora_ignacio': '5491128394047',
     'vendedora_cinthia': '5491136214746',
     'vendedora_alan': '5491136538703',
+    'vendedora_agustin': '5491172644017',
     'whatsapp_nuevo': '5491156574088',
 }
 
