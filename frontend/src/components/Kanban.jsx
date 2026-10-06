@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { eventosApi, usuariosApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { exportarEventosCompletoAExcel } from '../pages/eventosExport';
 import EventoCard from './EventoCard';
 import EventoModal from './EventoModal';
 import NuevoEventoModal from './NuevoEventoModal';
@@ -74,8 +75,15 @@ const saveToStorage = (key, value) => {
   }
 };
 
+// Usuarios habilitados para descargar el export completo (el backend también lo valida)
+const EXPORT_EMAILS_PERMITIDOS = ['eventos@nuevogastro.com', 'augusto@nuevogastro.com'];
+
+// A partir de esta cantidad de eventos se advierte antes de descargar
+const UMBRAL_ADVERTENCIA_EXPORT = 1500;
+
 export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null, onClearEventoNotif }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, usuario } = useAuth();
+  const puedeExportar = EXPORT_EMAILS_PERMITIDOS.includes((usuario?.email || '').toLowerCase());
 
   // Comerciales no ven CONSULTA_ENTRANTE para evitar especulación
   const estadosVisibles = isAdmin
@@ -485,6 +493,42 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
     URL.revokeObjectURL(url);
   };
 
+  // Descarga Excel completa (todos los datos, según filtros de la vista activa)
+  const [descargando, setDescargando] = useState(false);
+
+  const descargarExcelCompleto = async () => {
+    const eventos = vistaActiva === 'lista'
+      ? getTodosLosEventos()
+      : estadosVisibles.flatMap(e => getEventosFiltrados(e.id));
+
+    if (eventos.length === 0) {
+      alert('No hay eventos para descargar con los filtros actuales');
+      return;
+    }
+
+    if (eventos.length > UMBRAL_ADVERTENCIA_EXPORT) {
+      const ok = window.confirm(
+        `Vas a descargar ${eventos.length} eventos con todos sus datos. ` +
+        `El archivo puede ser pesado y la generación tardar unos segundos. ¿Continuar?`
+      );
+      if (!ok) return;
+    }
+
+    setDescargando(true);
+    try {
+      await exportarEventosCompletoAExcel(eventos.map(e => e.id));
+    } catch (error) {
+      console.error('Error descargando export:', error);
+      if (error.response?.status === 403) {
+        alert('No tenés permiso para descargar el export completo');
+      } else {
+        alert('Error generando la descarga. Probá de nuevo.');
+      }
+    } finally {
+      setDescargando(false);
+    }
+  };
+
   // Calcular totales generales (basados en eventos filtrados)
   const totalesCalculados = estadosVisibles.reduce((acc, estado) => {
     const filtrados = getEventosFiltrados(estado.id);
@@ -559,6 +603,21 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
           </div>
 
           <div className="toolbar-actions">
+            {puedeExportar && (
+              <button
+                className="toolbar-btn"
+                onClick={descargarExcelCompleto}
+                disabled={descargando}
+                title="Descargar Excel con todos los datos (según filtros activos)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                {descargando ? 'Generando…' : 'Descargar'}
+              </button>
+            )}
             <button
               className={`toolbar-btn ${hayFiltrosGlobalesActivos ? 'active-filter' : ''}`}
               onClick={() => setShowFiltrosGlobales(!showFiltrosGlobales)}
@@ -827,14 +886,26 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
               )}
             </div>
             <div className="lista-actions">
-              <button className="btn-csv" onClick={descargarCSV} title="Descargar CSV">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                CSV
-              </button>
+              {puedeExportar && (
+                <button className="btn-csv" onClick={descargarCSV} title="Descargar CSV (columnas resumidas)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  CSV
+                </button>
+              )}
+              {puedeExportar && (
+                <button className="btn-csv" onClick={descargarExcelCompleto} disabled={descargando} title="Descargar Excel con todos los datos (según filtros activos)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  {descargando ? 'Generando…' : 'Excel completo'}
+                </button>
+              )}
               <span className="lista-info">
                 {getTodosLosEventos().length} eventos
               </span>

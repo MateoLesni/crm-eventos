@@ -1097,3 +1097,47 @@ def concluir_eventos_finalizados():
         'fecha_ejecucion': hoy.isoformat(),
         'eventos_concluidos': concluidos
     })
+
+
+# ============== EXPORT COMPLETO PARA DESCARGA (solo usuarios autorizados) ==============
+
+# Emails habilitados para descargar el export completo desde el pipeline/lista
+EXPORT_EMAILS_PERMITIDOS = {'eventos@nuevogastro.com', 'augusto@nuevogastro.com'}
+
+
+# GET /api/eventos/exportar - Datos completos de todas las tarjetas, paginado por cursor.
+# El filtrado se hace en el frontend (que ya tiene los filtros aplicados); este endpoint
+# entrega el dataset completo en páginas chicas con joinedload para no castigar la DB.
+@eventos_bp.route('/exportar', methods=['GET'])
+def exportar_eventos():
+    user = get_current_user_from_token()
+    if not user:
+        return jsonify({'error': 'No autenticado'}), 401
+    if (user.email or '').lower() not in EXPORT_EMAILS_PERMITIDOS:
+        return jsonify({'error': 'No tenés permiso para descargar el export'}), 403
+
+    try:
+        limit = min(int(request.args.get('limit', 1000)), 1000)
+        after_id = int(request.args.get('after_id', 0))
+    except ValueError:
+        return jsonify({'error': 'Parámetros inválidos'}), 400
+
+    from app.routes.export import _evento_export_dict
+
+    eventos = (Evento.query
+               .options(joinedload(Evento.cliente),
+                        joinedload(Evento.local),
+                        joinedload(Evento.comercial))
+               .filter(Evento.id > after_id)
+               .order_by(Evento.id.asc())
+               .limit(limit + 1)
+               .all())
+
+    has_more = len(eventos) > limit
+    eventos = eventos[:limit]
+
+    return jsonify({
+        'eventos': [_evento_export_dict(e) for e in eventos],
+        'has_more': has_more,
+        'next_after_id': eventos[-1].id if eventos else after_id,
+    })
