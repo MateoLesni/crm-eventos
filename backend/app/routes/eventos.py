@@ -1104,6 +1104,9 @@ def concluir_eventos_finalizados():
 # Emails habilitados para descargar el export completo desde el pipeline/lista
 EXPORT_EMAILS_PERMITIDOS = {'eventos@nuevogastro.com', 'augusto@nuevogastro.com'}
 
+# Emails que pueden descargar SOLO los eventos asignados a ellos
+EXPORT_EMAILS_SOLO_PROPIOS = {'comercial5@nuevogastro.com'}
+
 
 # GET /api/eventos/exportar - Datos completos de todas las tarjetas, paginado por cursor.
 # El filtrado se hace en el frontend (que ya tiene los filtros aplicados); este endpoint
@@ -1113,7 +1116,11 @@ def exportar_eventos():
     user = get_current_user_from_token()
     if not user:
         return jsonify({'error': 'No autenticado'}), 401
-    if (user.email or '').lower() not in EXPORT_EMAILS_PERMITIDOS:
+
+    email = (user.email or '').lower()
+    acceso_total = email in EXPORT_EMAILS_PERMITIDOS
+    solo_propios = email in EXPORT_EMAILS_SOLO_PROPIOS
+    if not acceso_total and not solo_propios:
         return jsonify({'error': 'No tenés permiso para descargar el export'}), 403
 
     try:
@@ -1124,11 +1131,17 @@ def exportar_eventos():
 
     from app.routes.export import _evento_export_dict
 
-    eventos = (Evento.query
-               .options(joinedload(Evento.cliente),
-                        joinedload(Evento.local),
-                        joinedload(Evento.comercial))
-               .filter(Evento.id > after_id)
+    query = (Evento.query
+             .options(joinedload(Evento.cliente),
+                      joinedload(Evento.local),
+                      joinedload(Evento.comercial))
+             .filter(Evento.id > after_id))
+
+    # Los usuarios con acceso restringido solo reciben sus propios eventos
+    if not acceso_total:
+        query = query.filter(Evento.comercial_id == user.id)
+
+    eventos = (query
                .order_by(Evento.id.asc())
                .limit(limit + 1)
                .all())

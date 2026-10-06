@@ -75,8 +75,9 @@ const saveToStorage = (key, value) => {
   }
 };
 
-// Usuarios habilitados para descargar el export completo (el backend también lo valida)
-const EXPORT_EMAILS_PERMITIDOS = ['eventos@nuevogastro.com', 'augusto@nuevogastro.com'];
+// Usuarios habilitados para descargar el export (el backend también lo valida;
+// a los comerciales habilitados solo les entrega sus propios eventos)
+const EXPORT_EMAILS_PERMITIDOS = ['eventos@nuevogastro.com', 'augusto@nuevogastro.com', 'comercial5@nuevogastro.com'];
 
 // A partir de esta cantidad de eventos se advierte antes de descargar
 const UMBRAL_ADVERTENCIA_EXPORT = 1500;
