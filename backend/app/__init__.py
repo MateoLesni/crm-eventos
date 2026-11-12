@@ -1,9 +1,11 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from flask_compress import Compress
 from app.config import Config
 
 db = SQLAlchemy()
+compress = Compress()
 
 def create_app():
     app = Flask(__name__)
@@ -11,6 +13,7 @@ def create_app():
 
     # CORS dinámico desde variable de entorno
     CORS(app, origins=Config.CORS_ORIGINS, supports_credentials=True)
+    compress.init_app(app)
     db.init_app(app)
 
     # Registrar blueprints del CRM

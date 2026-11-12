@@ -38,7 +38,7 @@ api.interceptors.response.use(
 
 // Eventos
 export const eventosApi = {
-  listar: () => api.get('/eventos'),
+  listar: (grupo) => api.get('/eventos', { params: grupo ? { grupo } : {} }),
   obtener: (id) => api.get(`/eventos/${id}`),
   crear: (data) => api.post('/eventos', data),
   actualizar: (id, data) => api.put(`/eventos/${id}`, data),

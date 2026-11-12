@@ -25,6 +25,41 @@ def registrar_transicion(evento, estado_anterior, estado_nuevo, usuario_id=None,
 
 eventos_bp = Blueprint('eventos', __name__)
 
+# Columnas del Kanban: las activas se cargan primero, las cerradas en segundo plano
+ESTADOS_KANBAN_ACTIVOS = ['CONSULTA_ENTRANTE', 'ASIGNADO', 'CONTACTADO', 'COTIZADO', 'APROBADO']
+ESTADOS_KANBAN_CERRADOS = ['RECHAZADO', 'MULTIRESERVA', 'CONCLUIDO']
+ESTADOS_KANBAN_GRUPOS = {
+    'activos': ESTADOS_KANBAN_ACTIVOS,
+    'cerrados': ESTADOS_KANBAN_CERRADOS,
+}
+
+
+def evento_card_dict(evento):
+    """Versión liviana del evento para el pipeline y la lista.
+    Solo lo que muestran la tarjeta, la lista, los filtros y el CSV; el detalle
+    completo lo trae el modal con GET /api/eventos/<id>."""
+    return {
+        'id': evento.id,
+        'titulo': evento.titulo,
+        'titulo_display': evento.titulo or evento.generar_titulo_auto(),
+        'cliente': {
+            'id': evento.cliente.id,
+            'nombre': evento.cliente.nombre,
+            'telefono': evento.cliente.telefono,
+            'email': evento.cliente.email,
+        } if evento.cliente else None,
+        'local': {'id': evento.local.id, 'nombre': evento.local.nombre} if evento.local else None,
+        'comercial': {'id': evento.comercial.id, 'nombre': evento.comercial.nombre} if evento.comercial else None,
+        'fecha_evento': evento.fecha_evento.isoformat() if evento.fecha_evento else None,
+        'cantidad_personas': evento.cantidad_personas,
+        'tipo': evento.tipo,
+        'estado': evento.estado,
+        'presupuesto': float(evento.presupuesto) if evento.presupuesto else None,
+        'es_prioritario': evento.es_prioritario,
+        'es_tentativo': evento.es_tentativo,
+        'created_at': evento.created_at.isoformat() if evento.created_at else None,
+    }
+
 # Prioridad de estados (mayor número = mayor prioridad)
 ESTADO_PRIORIDAD = {
     'CONSULTA_ENTRANTE': 1,
@@ -130,6 +165,11 @@ def listar_eventos():
     if local_id:
         query = query.filter_by(local_id=local_id)
 
+    # grupo=activos|cerrados permite cargar el pipeline en dos tiempos
+    grupo = request.args.get('grupo')
+    estados_grupo = ESTADOS_KANBAN_GRUPOS.get(grupo, ESTADOS_KANBAN_ACTIVOS + ESTADOS_KANBAN_CERRADOS)
+    query = query.filter(Evento.estado.in_(estados_grupo))
+
     eventos = query.order_by(Evento.created_at.desc()).all()
 
     # Obtener IDs de eventos con precheck en una sola query
@@ -146,24 +186,15 @@ def listar_eventos():
         """), {'ids': tuple(evento_ids)})
         eventos_con_precheck = {row[0] for row in result}
 
-    # Agrupar por estado para el Kanban
-    kanban = {
-        'CONSULTA_ENTRANTE': [],
-        'ASIGNADO': [],
-        'CONTACTADO': [],
-        'COTIZADO': [],
-        'APROBADO': [],
-        'RECHAZADO': [],
-        'MULTIRESERVA': [],
-        'CONCLUIDO': [],
-    }
+    # Agrupar por estado para el Kanban (solo las columnas del grupo pedido)
+    kanban = {estado_kanban: [] for estado_kanban in estados_grupo}
 
     from app.utils.sla import calcular_sla_evento
 
     for evento in eventos:
         estado = evento.estado
         if estado in kanban:
-            evento_dict = evento.to_dict()
+            evento_dict = evento_card_dict(evento)
             evento_dict['tiene_precheck'] = evento.id in eventos_con_precheck
             # Calcular SLA solo para estados que lo requieren
             sla = calcular_sla_evento(evento)

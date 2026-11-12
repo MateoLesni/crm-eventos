@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { exportarReportesAExcel } from './reportesExport';
 import './Reportes.css';
 
 // Formatear montos grandes: $4.230.808 -> $4.2M
@@ -133,6 +132,7 @@ export default function Reportes() {
             className="btn-exportar-excel"
             onClick={async () => {
               try {
+                const { exportarReportesAExcel } = await import('./reportesExport');
                 await exportarReportesAExcel(data, filtros);
               } catch (err) {
                 console.error('Error exportando a Excel:', err);

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { eventosApi, usuariosApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { exportarEventosCompletoAExcel } from '../pages/eventosExport';
 import EventoCard from './EventoCard';
 import EventoModal from './EventoModal';
 import NuevoEventoModal from './NuevoEventoModal';
@@ -82,6 +81,13 @@ const EXPORT_EMAILS_PERMITIDOS = ['eventos@nuevogastro.com', 'augusto@nuevogastr
 // A partir de esta cantidad de eventos se advierte antes de descargar
 const UMBRAL_ADVERTENCIA_EXPORT = 1500;
 
+// Columnas que llegan en la segunda carga (ver cargarEventos)
+const ESTADOS_CERRADOS = ['RECHAZADO', 'MULTIRESERVA', 'CONCLUIDO'];
+
+// Tarjetas/filas que se dibujan de entrada; los contadores siempre usan el total real
+const PAGINA_COLUMNA = 50;
+const PAGINA_LISTA = 100;
+
 export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null, onClearEventoNotif }) {
   const { isAdmin, usuario } = useAuth();
   const puedeExportar = EXPORT_EMAILS_PERMITIDOS.includes((usuario?.email || '').toLowerCase());
@@ -94,6 +100,11 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
   const [kanban, setKanban] = useState({});
   const [totales, setTotales] = useState({});
   const [loading, setLoading] = useState(true);
+  const [cerradosCargados, setCerradosCargados] = useState(false);
+
+  // Cuántas tarjetas/filas se dibujan por columna y en la lista (el resto con "Mostrar más")
+  const [visiblesPorColumna, setVisiblesPorColumna] = useState({});
+  const [visiblesLista, setVisiblesLista] = useState(PAGINA_LISTA);
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [tabInicial, setTabInicial] = useState('detalle');
@@ -177,16 +188,24 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
     }
   }, [eventoIdDesdeNotif]);
 
+  // Carga en dos tiempos: las columnas activas aparecen primero y las cerradas
+  // (Rechazado, Multireserva, Concluido) llegan en paralelo sin bloquear la pantalla.
   const cargarEventos = async () => {
-    try {
-      const response = await eventosApi.listar();
-      setKanban(response.data.kanban);
-      setTotales(response.data.totales);
-    } catch (error) {
-      console.error('Error cargando eventos:', error);
-    } finally {
-      setLoading(false);
-    }
+    const cargarGrupo = async (grupo) => {
+      const response = await eventosApi.listar(grupo);
+      setKanban(prev => ({ ...prev, ...response.data.kanban }));
+      setTotales(prev => ({ ...prev, ...response.data.totales }));
+    };
+
+    const activos = cargarGrupo('activos')
+      .catch(error => console.error('Error cargando eventos activos:', error))
+      .finally(() => setLoading(false));
+
+    const cerrados = cargarGrupo('cerrados')
+      .then(() => setCerradosCargados(true))
+      .catch(error => console.error('Error cargando eventos cerrados:', error));
+
+    await Promise.all([activos, cerrados]);
   };
 
   const cargarComerciales = async () => {
@@ -440,6 +459,11 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
 
   // Función para descargar CSV
   const descargarCSV = () => {
+    if (!cerradosCargados) {
+      alert('Todavía se están cargando los eventos cerrados. Esperá unos segundos y volvé a intentar.');
+      return;
+    }
+
     const eventos = getTodosLosEventos();
 
     if (eventos.length === 0) {
@@ -498,6 +522,11 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
   const [descargando, setDescargando] = useState(false);
 
   const descargarExcelCompleto = async () => {
+    if (!cerradosCargados) {
+      alert('Todavía se están cargando los eventos cerrados. Esperá unos segundos y volvé a intentar.');
+      return;
+    }
+
     const eventos = vistaActiva === 'lista'
       ? getTodosLosEventos()
       : estadosVisibles.flatMap(e => getEventosFiltrados(e.id));
@@ -517,6 +546,7 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
 
     setDescargando(true);
     try {
+      const { exportarEventosCompletoAExcel } = await import('../pages/eventosExport');
       await exportarEventosCompletoAExcel(eventos.map(e => e.id));
     } catch (error) {
       console.error('Error descargando export:', error);
@@ -530,9 +560,18 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
     }
   };
 
+  // Filtrado calculado una sola vez por render (lo usan las columnas y los totales)
+  const filtradosPorEstado = {};
+  if (vistaActiva === 'kanban') {
+    estadosVisibles.forEach(estado => {
+      filtradosPorEstado[estado.id] = getEventosFiltrados(estado.id);
+    });
+  }
+  const eventosLista = vistaActiva === 'lista' ? getTodosLosEventos() : [];
+
   // Calcular totales generales (basados en eventos filtrados)
   const totalesCalculados = estadosVisibles.reduce((acc, estado) => {
-    const filtrados = getEventosFiltrados(estado.id);
+    const filtrados = filtradosPorEstado[estado.id] || getEventosFiltrados(estado.id);
     acc.eventos += filtrados.length;
     acc.monto += filtrados.reduce((sum, e) => sum + (e.presupuesto || 0), 0);
     return acc;
@@ -600,7 +639,7 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
           <div className="totales-generales">
             <span className="total-monto">${totalMonto.toLocaleString()}</span>
             <span className="total-separator">·</span>
-            <span className="total-count">{totalEventos} eventos</span>
+            <span className="total-count">{totalEventos} eventos{!cerradosCargados && ' (cargando cerrados…)'}</span>
           </div>
 
           <div className="toolbar-actions">
@@ -782,9 +821,12 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
       {vistaActiva === 'kanban' && (
       <div className="kanban-board">
         {estadosVisibles.map((estado) => {
-          const eventosFiltrados = getEventosFiltrados(estado.id);
+          const eventosFiltrados = filtradosPorEstado[estado.id];
           const tieneFiltroBusqueda = !!filtrosColumna[estado.id];
           const ordenActual = ordenColumna[estado.id] || 'asc';
+          const columnaCargando = !cerradosCargados && ESTADOS_CERRADOS.includes(estado.id);
+          const limiteVisible = visiblesPorColumna[estado.id] || PAGINA_COLUMNA;
+          const restantes = eventosFiltrados.length - limiteVisible;
 
           return (
             <div key={estado.id} className="kanban-column">
@@ -840,16 +882,22 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
                 )}
 
                 <div className="column-stats">
-                  <span className="stat-monto">
-                    ${eventosFiltrados.reduce((sum, e) => sum + (e.presupuesto || 0), 0).toLocaleString()}
-                  </span>
-                  <span className="stat-separator">·</span>
-                  <span className="stat-count">{eventosFiltrados.length} eventos</span>
+                  {columnaCargando ? (
+                    <span className="stat-count">Cargando…</span>
+                  ) : (
+                    <>
+                      <span className="stat-monto">
+                        ${eventosFiltrados.reduce((sum, e) => sum + (e.presupuesto || 0), 0).toLocaleString()}
+                      </span>
+                      <span className="stat-separator">·</span>
+                      <span className="stat-count">{eventosFiltrados.length} eventos</span>
+                    </>
+                  )}
                 </div>
               </div>
 
               <div className="column-content">
-                {eventosFiltrados.map((evento) => (
+                {eventosFiltrados.slice(0, limiteVisible).map((evento) => (
                   <EventoCard
                     key={evento.id}
                     evento={evento}
@@ -859,6 +907,14 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
                     onEliminar={() => setEventoAEliminar(evento)}
                   />
                 ))}
+                {restantes > 0 && (
+                  <button
+                    className="btn-mostrar-mas"
+                    onClick={() => setVisiblesPorColumna({ ...visiblesPorColumna, [estado.id]: limiteVisible + PAGINA_COLUMNA })}
+                  >
+                    Mostrar {Math.min(PAGINA_COLUMNA, restantes)} más ({restantes} restantes)
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -908,7 +964,7 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
                 </button>
               )}
               <span className="lista-info">
-                {getTodosLosEventos().length} eventos
+                {eventosLista.length} eventos{!cerradosCargados && ' (cargando cerrados…)'}
               </span>
             </div>
           </div>
@@ -964,14 +1020,14 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
                 </tr>
               </thead>
               <tbody>
-                {getTodosLosEventos().length === 0 ? (
+                {eventosLista.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="sin-resultados">
                       No hay eventos que coincidan con los filtros
                     </td>
                   </tr>
                 ) : (
-                  getTodosLosEventos().map((evento) => {
+                  eventosLista.slice(0, visiblesLista).map((evento) => {
                     const estadoInfo = getEstadoInfo(evento.estado);
                     return (
                       <tr
@@ -1008,6 +1064,14 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
                 )}
               </tbody>
             </table>
+            {eventosLista.length > visiblesLista && (
+              <button
+                className="btn-mostrar-mas"
+                onClick={() => setVisiblesLista(visiblesLista + PAGINA_LISTA)}
+              >
+                Mostrar {Math.min(PAGINA_LISTA, eventosLista.length - visiblesLista)} más ({eventosLista.length - visiblesLista} restantes)
+              </button>
+            )}
           </div>
         </div>
       )}
