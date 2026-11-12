@@ -26,7 +26,6 @@
   --critico: #b4322e;
 
   --fuente-ui: 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --fuente-titulo: 'Young Serif', Georgia, 'Times New Roman', serif;
 
   font-family: var(--fuente-ui);
   color: var(--tinta);
@@ -80,9 +79,7 @@ textarea {
 
 .sidebar .logo-text {
   color: var(--botella);
-  font-family: var(--fuente-titulo);
-  font-weight: 400;
-  letter-spacing: 0.5px;
+  font-weight: 700;
 }
 
 .sidebar .nav-item svg {
@@ -118,8 +115,7 @@ textarea {
 }
 
 .app-header .header-left h1 {
-  font-family: var(--fuente-titulo);
-  font-weight: 400;
+  font-weight: 700;
   font-size: 19px;
   color: var(--botella);
 }
@@ -292,9 +288,8 @@ textarea {
 }
 
 .column-header h3 {
-  font-family: var(--fuente-titulo);
-  font-weight: 400;
-  font-size: 15px;
+  font-weight: 600;
+  font-size: 14px;
   color: var(--botella);
 }
 
@@ -550,8 +545,7 @@ textarea {
 }
 
 .modal-header h2 {
-  font-family: var(--fuente-titulo);
-  font-weight: 400;
+  font-weight: 700;
   color: var(--botella);
 }
 
@@ -710,8 +704,7 @@ textarea {
 }
 
 .login-page .login-welcome h1 {
-  font-family: var(--fuente-titulo);
-  font-weight: 400;
+  font-weight: 700;
   color: var(--botella);
 }
 
@@ -731,8 +724,7 @@ textarea {
 }
 
 .login-page .brand-main h2 {
-  font-family: var(--fuente-titulo);
-  font-weight: 400;
+  font-weight: 700;
 }
 
 .login-page .brand-icon,
@@ -746,7 +738,6 @@ textarea {
 }
 
 .login-page .brand-stats .stat-number {
-  font-family: var(--fuente-titulo);
-  font-weight: 400;
+  font-weight: 700;
   color: #e6cd96;
 }
