@@ -1,0 +1,752 @@
+/*
+ * Tema visual del CRM: botella, lino y latón (mundo de restaurante y barra).
+ * Se carga último (ver main.jsx) y solo pisa colores, tipografía, bordes y sombras.
+ * No cambia tamaños, posiciones ni display: el layout queda igual que en los estilos base.
+ */
+
+:root {
+  --botella: #17382d;
+  --botella-hover: #0e2820;
+  --botella-suave: #e3ece6;
+  --lino: #ecede7;
+  --lino-oscuro: #e1e3da;
+  --papel: #ffffff;
+  --tinta: #1e2722;
+  --tinta-suave: #5c6359;
+  --tinta-tenue: #8d9288;
+  --linea: #d8dad1;
+  --linea-fuerte: #b9bcb0;
+  --laton: #8a6823;
+  --laton-claro: #c8a35a;
+  --laton-suave: #f3ebd9;
+  --vino: #8c2443;
+  --vino-suave: #f7e9ee;
+  --dinero: #23704a;
+  --alerta: #d9a21b;
+  --critico: #b4322e;
+
+  --fuente-ui: 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --fuente-titulo: 'Young Serif', Georgia, 'Times New Roman', serif;
+
+  font-family: var(--fuente-ui);
+  color: var(--tinta);
+  background-color: var(--lino);
+}
+
+/* ---------- Base ---------- */
+
+body {
+  font-family: var(--fuente-ui);
+  background-color: var(--lino);
+  color: var(--tinta);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--laton-claro);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--laton-suave);
+  color: var(--tinta);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Barra lateral ---------- */
+
+.sidebar {
+  background-color: var(--botella);
+}
+
+.sidebar .sidebar-logo {
+  background: var(--laton-claro);
+  border-radius: 10px;
+}
+
+.sidebar .logo-text {
+  color: var(--botella);
+  font-family: var(--fuente-titulo);
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+.sidebar .nav-item svg {
+  color: #9fb5aa;
+}
+
+.sidebar .nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar .nav-item:hover svg {
+  color: #f1f3ee;
+}
+
+.sidebar .nav-item.active {
+  background-color: rgba(200, 163, 90, 0.18);
+}
+
+.sidebar .nav-item.active svg {
+  color: #e6cd96;
+}
+
+.sidebar .nav-item.has-badge .badge {
+  background-color: var(--laton-claro);
+  color: var(--botella);
+}
+
+/* ---------- Encabezado ---------- */
+
+.app-header {
+  background: var(--papel);
+  border-bottom-color: var(--linea);
+}
+
+.app-header .header-left h1 {
+  font-family: var(--fuente-titulo);
+  font-weight: 400;
+  font-size: 19px;
+  color: var(--botella);
+}
+
+.app-header .search-box input {
+  border-color: var(--linea);
+  background-color: #f6f7f2;
+  color: var(--tinta);
+}
+
+.app-header .search-box input:focus,
+.app-header .search-box.search-active input {
+  border-color: var(--botella);
+  background-color: var(--papel);
+}
+
+.app-header .btn-icon:hover {
+  background-color: var(--lino);
+}
+
+.app-header .btn-icon:hover svg {
+  color: var(--botella);
+}
+
+.app-header .user-avatar {
+  background: var(--botella);
+  color: #e6cd96;
+}
+
+/* ---------- Pipeline: barra de herramientas ---------- */
+
+.kanban-container {
+  background-color: var(--lino);
+}
+
+.kanban-toolbar {
+  background: var(--papel);
+  border-bottom-color: var(--linea);
+}
+
+.view-buttons {
+  border-color: var(--linea);
+  border-radius: 7px;
+}
+
+.view-btn {
+  background: var(--papel);
+  border-right-color: var(--linea);
+}
+
+.view-btn:hover {
+  background-color: #f3f4ef;
+}
+
+.view-btn.active {
+  background-color: var(--botella-suave);
+}
+
+.view-btn.active svg {
+  color: var(--botella);
+}
+
+.btn-nuevo {
+  background-color: var(--botella);
+  color: #f4f1e6;
+  border-radius: 7px;
+  font-weight: 600;
+}
+
+.btn-nuevo:hover {
+  background-color: var(--botella-hover);
+}
+
+.totales-generales .total-monto {
+  color: var(--laton);
+  font-weight: 700;
+}
+
+.totales-generales .total-count {
+  color: var(--tinta-suave);
+}
+
+.toolbar-btn {
+  border-color: var(--linea);
+  border-radius: 7px;
+  color: var(--tinta);
+}
+
+.toolbar-btn svg {
+  color: var(--tinta-suave);
+}
+
+.toolbar-btn:hover {
+  background-color: #f3f4ef;
+  border-color: var(--linea-fuerte);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.toolbar-btn.active-filter {
+  border-color: var(--botella);
+  background-color: var(--botella-suave);
+}
+
+.toolbar-btn.active-filter svg,
+.filter-badge {
+  color: var(--botella);
+}
+
+.filter-badge {
+  background-color: var(--laton-claro);
+}
+
+/* ---------- Pipeline: filtros ---------- */
+
+.filtros-globales-bar {
+  background: #f8f8f4;
+  border-bottom-color: var(--linea);
+}
+
+.filtro-group label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tinta-suave);
+}
+
+.filtro-group input,
+.filtro-group select {
+  border-color: var(--linea);
+  border-radius: 6px;
+  color: var(--tinta);
+  background-color: var(--papel);
+}
+
+.filtro-group input:focus,
+.filtro-group select:focus {
+  border-color: var(--botella);
+  box-shadow: 0 0 0 3px rgba(23, 56, 45, 0.12);
+}
+
+.filtro-separator {
+  background: var(--linea);
+}
+
+.btn-limpiar-filtros {
+  border-color: var(--vino);
+  color: var(--vino);
+  border-radius: 6px;
+}
+
+.btn-limpiar-filtros:hover {
+  background: var(--vino-suave);
+}
+
+/* ---------- Pipeline: columnas (la pieza con carácter: secciones de una carta) ---------- */
+
+.kanban-column {
+  background-color: var(--lino-oscuro);
+  border-radius: 10px;
+}
+
+.column-header {
+  border-top-width: 2px;
+  border-radius: 10px 10px 0 0;
+}
+
+.column-header h3 {
+  font-family: var(--fuente-titulo);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--botella);
+}
+
+.column-stats,
+.column-stats .stat-count {
+  color: var(--tinta-suave);
+}
+
+.column-stats .stat-monto {
+  color: var(--laton);
+  font-weight: 600;
+}
+
+.column-stats .stat-separator {
+  color: var(--linea-fuerte);
+}
+
+.column-action-btn {
+  color: var(--tinta-tenue);
+}
+
+.column-action-btn:hover {
+  background-color: rgba(23, 56, 45, 0.08);
+  color: var(--botella);
+}
+
+.column-action-btn.filter-active {
+  color: var(--botella);
+}
+
+.column-action-btn.filter-active:hover {
+  background-color: var(--botella-suave);
+}
+
+.column-action-btn.sort-desc {
+  color: var(--laton);
+}
+
+.column-action-btn.sort-desc:hover {
+  background-color: var(--laton-suave);
+}
+
+.column-filter-input input {
+  border-color: var(--linea);
+  border-radius: 6px;
+}
+
+.column-filter-input input:focus {
+  border-color: var(--botella);
+  box-shadow: 0 0 0 3px rgba(23, 56, 45, 0.12);
+}
+
+.column-content::-webkit-scrollbar-thumb,
+.kanban-board::-webkit-scrollbar-thumb {
+  background: rgba(23, 56, 45, 0.18);
+}
+
+.btn-mostrar-mas {
+  border-color: var(--linea-fuerte);
+  color: var(--tinta-suave);
+  border-radius: 8px;
+}
+
+.btn-mostrar-mas:hover {
+  background: var(--papel);
+  color: var(--botella);
+  border-color: var(--botella);
+}
+
+/* ---------- Tarjeta de evento ---------- */
+
+.evento-card {
+  background: var(--papel);
+  border: 1px solid var(--linea);
+  border-radius: 8px;
+  box-shadow: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.evento-card:hover {
+  border-color: var(--linea-fuerte);
+  box-shadow: 0 3px 10px rgba(23, 56, 45, 0.08);
+}
+
+.evento-card .card-titulo {
+  color: var(--tinta);
+  letter-spacing: -0.15px;
+}
+
+.evento-card .card-cliente {
+  color: var(--tinta-suave);
+}
+
+.evento-card .card-monto {
+  color: var(--tinta);
+  font-weight: 600;
+}
+
+.evento-card .precheck-indicator {
+  background-color: var(--botella);
+  color: #e6cd96;
+}
+
+.evento-card .card-arrow:hover {
+  background-color: var(--lino);
+  color: var(--botella);
+}
+
+.etiqueta-menu {
+  border: 1px solid var(--linea);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(23, 56, 45, 0.14);
+}
+
+.etiqueta-option {
+  color: var(--tinta);
+}
+
+.etiqueta-option:hover {
+  background-color: #f3f4ef;
+}
+
+.etiqueta-option.active {
+  background-color: var(--botella-suave);
+}
+
+.etiqueta-option.eliminar {
+  color: var(--vino);
+}
+
+.etiqueta-option.eliminar:hover {
+  background-color: var(--vino-suave);
+}
+
+/* Avisos de SLA: mismo significado, colores de la paleta */
+.evento-card.sla-alerta {
+  border-left: 3px solid var(--alerta);
+}
+
+.evento-card.sla-critico {
+  border-left: 3px solid var(--critico);
+}
+
+/* ---------- Vista lista ---------- */
+
+.lista-container {
+  background: var(--papel);
+}
+
+.lista-toolbar {
+  border-bottom-color: var(--linea);
+}
+
+.lista-search {
+  background: #f3f4ef;
+  border-radius: 8px;
+}
+
+.lista-search input {
+  color: var(--tinta);
+}
+
+.lista-info {
+  color: var(--tinta-suave);
+}
+
+.btn-csv {
+  background: var(--botella);
+  color: #f4f1e6;
+  border-radius: 7px;
+}
+
+.btn-csv:hover {
+  background: var(--botella-hover);
+}
+
+.lista-tabla thead {
+  background: #f4f5f0;
+}
+
+.lista-tabla th {
+  color: var(--tinta);
+  border-bottom-color: var(--linea);
+}
+
+.lista-tabla th.col-sortable:hover {
+  background: var(--lino);
+}
+
+.lista-tabla th .sort-indicator {
+  color: var(--laton);
+}
+
+.lista-tabla td {
+  border-bottom-color: #eceee8;
+}
+
+.lista-tabla td.col-monto {
+  color: var(--dinero);
+}
+
+.lista-tabla td.col-pax {
+  color: var(--tinta-suave);
+}
+
+.lista-tabla td.col-fecha-creado {
+  color: var(--tinta-tenue);
+}
+
+.lista-tabla .fila-evento:hover {
+  background-color: #f6f7f2;
+}
+
+.lista-tabla .cliente-nombre {
+  color: var(--tinta);
+}
+
+.lista-tabla .cliente-telefono {
+  color: var(--tinta-tenue);
+}
+
+.col-local-lista {
+  color: var(--tinta);
+}
+
+.badge-estado-lista {
+  border-radius: 999px;
+}
+
+.sin-asignar {
+  color: #a0681a;
+}
+
+/* ---------- Modales ---------- */
+
+.modal-overlay {
+  background-color: rgba(14, 40, 32, 0.45);
+}
+
+.modal-content {
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(14, 40, 32, 0.25);
+}
+
+.modal-close {
+  background: #eeefe9;
+  color: var(--tinta-suave);
+}
+
+.modal-close:hover {
+  background: var(--linea);
+  color: var(--tinta);
+}
+
+.modal-header h2 {
+  font-family: var(--fuente-titulo);
+  font-weight: 400;
+  color: var(--botella);
+}
+
+.badge-recurrente-large {
+  background-color: var(--laton-suave);
+  color: #6e5418;
+  border-radius: 999px;
+}
+
+.modal-tabs {
+  background: #f8f8f4;
+  border-bottom-color: var(--linea);
+}
+
+.modal-tab {
+  color: var(--tinta-suave);
+}
+
+.modal-tab:hover {
+  color: var(--tinta);
+}
+
+.modal-tab.active {
+  color: var(--botella);
+}
+
+.modal-tab.active::after {
+  background-color: var(--botella);
+}
+
+.modal-tab .tab-badge {
+  background-color: var(--laton-claro);
+  color: var(--botella);
+}
+
+.modal-section h3,
+.form-section h3 {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--botella);
+}
+
+.info-item label {
+  text-transform: none;
+  font-size: 12px;
+  color: var(--tinta-tenue);
+}
+
+.info-item span {
+  color: var(--tinta);
+}
+
+.info-item .monto {
+  color: var(--dinero);
+}
+
+.asignacion-control select,
+.nueva-actividad select,
+.nueva-actividad textarea,
+.edicion-campo select,
+.form-group textarea {
+  border-color: var(--linea);
+  border-radius: 8px;
+}
+
+.btn-primary,
+.btn-agregar,
+.btn-guardar-sm,
+.btn-guardar-edicion {
+  background-color: var(--botella);
+  color: #f4f1e6;
+  border-radius: 8px;
+}
+
+.btn-primary:hover,
+.btn-agregar:hover,
+.btn-guardar-sm:hover,
+.btn-guardar-edicion:hover {
+  background-color: var(--botella-hover);
+}
+
+.btn-primary:disabled {
+  background-color: var(--linea-fuerte);
+}
+
+.btn-secondary {
+  color: var(--tinta);
+  border-color: var(--linea);
+  border-radius: 8px;
+}
+
+.btn-secondary:hover {
+  background-color: #f3f4ef;
+}
+
+.btn-confirmar {
+  background-color: var(--botella);
+  color: #f4f1e6;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.btn-confirmar:hover {
+  background-color: var(--botella-hover);
+}
+
+.btn-rechazar {
+  color: var(--vino);
+  border-color: var(--vino);
+  border-radius: 8px;
+}
+
+.btn-rechazar:hover {
+  background-color: var(--vino-suave);
+}
+
+.accion-btn {
+  border-color: var(--linea);
+  border-radius: 8px;
+}
+
+.accion-btn:hover {
+  border-color: var(--botella);
+  background-color: var(--botella-suave);
+}
+
+.btn-editar-small {
+  border-color: var(--linea);
+  border-radius: 6px;
+}
+
+.btn-editar-small:hover {
+  background-color: #f3f4ef;
+  border-color: var(--linea-fuerte);
+  color: var(--botella);
+}
+
+.actividad-item {
+  border-color: var(--linea);
+  border-radius: 10px;
+}
+
+.modal-footer {
+  border-top-color: var(--linea);
+}
+
+/* ---------- Login ---------- */
+
+.login-page .logo-icon,
+.login-page .login-btn {
+  background: var(--botella);
+}
+
+.login-page .login-btn:hover:not(:disabled) {
+  background: var(--botella-hover);
+}
+
+.login-page .login-welcome h1 {
+  font-family: var(--fuente-titulo);
+  font-weight: 400;
+  color: var(--botella);
+}
+
+.login-page .login-form input {
+  background: #f6f7f2;
+  border-color: var(--linea);
+  color: var(--tinta);
+}
+
+.login-page .login-form input:focus {
+  border-color: var(--botella);
+  background: var(--papel);
+}
+
+.login-page .login-brand-panel {
+  background: linear-gradient(160deg, #1d4536 0%, var(--botella) 45%, #0e2820 100%);
+}
+
+.login-page .brand-main h2 {
+  font-family: var(--fuente-titulo);
+  font-weight: 400;
+}
+
+.login-page .brand-icon,
+.login-page .feature-icon {
+  background: rgba(200, 163, 90, 0.18);
+}
+
+.login-page .brand-icon svg,
+.login-page .feature-icon svg {
+  color: #e6cd96;
+}
+
+.login-page .brand-stats .stat-number {
+  font-family: var(--fuente-titulo);
+  font-weight: 400;
+  color: #e6cd96;
+}
