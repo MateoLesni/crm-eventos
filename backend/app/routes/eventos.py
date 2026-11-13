@@ -629,21 +629,27 @@ def actualizar_evento(id):
 
 # POST /api/eventos/:id/actividades - Agregar actividad
 @eventos_bp.route('/<int:id>/actividades', methods=['POST'])
-@login_requerido
+@servicio_o_login
 def agregar_actividad(id):
     evento = Evento.query.get_or_404(id)
-    data = request.get_json()
+    data = request.get_json() or {}
     user = get_current_user()
+
+    if not (data.get('contenido') or '').strip():
+        return jsonify({'error': 'El contenido de la actividad es obligatorio'}), 400
 
     actividad = Actividad(
         evento_id=evento.id,
         usuario_id=user.id if user else None,
-        tipo=data.get('tipo', 'nota'),
+        # Las integraciones (n8n) dejan avisos de sistema, no notas de una persona
+        tipo=data.get('tipo', 'nota') if user else 'sistema',
         contenido=data.get('contenido')
     )
 
-    # Resetear SLA: la actividad manual demuestra gestión del evento
-    evento.fecha_ultimo_cambio_estado = ahora_argentina()
+    # Resetear SLA solo si la actividad la carga una persona: un aviso automático
+    # no es gestión del evento y no debe ocultar que el lead sigue sin atender
+    if user:
+        evento.fecha_ultimo_cambio_estado = ahora_argentina()
 
     db.session.add(actividad)
     db.session.commit()
