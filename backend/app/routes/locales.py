@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify
 from app import db
 from app.models import Local
 from app.routes.auth import get_current_user_from_token
+from app.utils.seguridad import login_requerido
 
 locales_bp = Blueprint('locales', __name__)
 
@@ -14,6 +15,7 @@ def get_current_user():
 
 
 @locales_bp.route('', methods=['GET'])
+@login_requerido
 def listar_locales():
     """
     Obtener lista de locales activos.
@@ -31,6 +33,7 @@ def listar_locales():
 
 
 @locales_bp.route('/<int:local_id>', methods=['GET'])
+@login_requerido
 def obtener_local(local_id):
     """
     Obtener un local específico por ID.

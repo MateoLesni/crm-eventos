@@ -24,6 +24,10 @@ def create_app():
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(eventos_bp, url_prefix='/api/eventos')
+
+    # Presupuestos adjuntos a cada evento
+    from app.routes.evento_archivos import evento_archivos_bp
+    app.register_blueprint(evento_archivos_bp, url_prefix='/api/eventos')
     app.register_blueprint(clientes_bp, url_prefix='/api/clientes')
     app.register_blueprint(usuarios_bp, url_prefix='/api/usuarios')
 

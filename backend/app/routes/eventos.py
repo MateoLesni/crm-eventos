@@ -6,6 +6,8 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import text
 from datetime import datetime
 from app.utils.timezone import ahora_argentina, hoy_argentina
+from app.utils.clientes import buscar_cliente, resumen_recurrencia
+from app.utils.seguridad import login_requerido, servicio_o_admin, servicio_o_login, servicio_requerido
 
 
 def registrar_transicion(evento, estado_anterior, estado_nuevo, usuario_id=None, origen='manual'):
@@ -34,20 +36,30 @@ ESTADOS_KANBAN_GRUPOS = {
 }
 
 
-def evento_card_dict(evento):
+def evento_card_dict(evento, recurrencia=None):
     """Versión liviana del evento para el pipeline y la lista.
     Solo lo que muestran la tarjeta, la lista, los filtros y el CSV; el detalle
-    completo lo trae el modal con GET /api/eventos/<id>."""
-    return {
-        'id': evento.id,
-        'titulo': evento.titulo,
-        'titulo_display': evento.titulo or evento.generar_titulo_auto(),
-        'cliente': {
+    completo lo trae el modal con GET /api/eventos/<id>.
+    recurrencia: resultado de resumen_recurrencia() para no consultar por tarjeta."""
+    cliente = None
+    if evento.cliente:
+        cliente = {
             'id': evento.cliente.id,
             'nombre': evento.cliente.nombre,
             'telefono': evento.cliente.telefono,
             'email': evento.cliente.email,
-        } if evento.cliente else None,
+            'es_agencia': bool(evento.cliente.es_agencia),
+            'cantidad_eventos': 1,
+            'es_cliente_recurrente': False,
+            'comercial_preferido': None,
+        }
+        if recurrencia and evento.cliente.id in recurrencia:
+            cliente.update(recurrencia[evento.cliente.id])
+    return {
+        'id': evento.id,
+        'titulo': evento.titulo,
+        'titulo_display': evento.titulo or evento.generar_titulo_auto(),
+        'cliente': cliente,
         'local': {'id': evento.local.id, 'nombre': evento.local.nombre} if evento.local else None,
         'comercial': {'id': evento.comercial.id, 'nombre': evento.comercial.nombre} if evento.comercial else None,
         'fecha_evento': evento.fecha_evento.isoformat() if evento.fecha_evento else None,
@@ -133,6 +145,7 @@ def calcular_estado_automatico(evento, es_nuevo=False):
 
 # GET /api/eventos - Listar eventos (Kanban)
 @eventos_bp.route('', methods=['GET'])
+@login_requerido
 def listar_eventos():
     user = get_current_user()
 
@@ -175,26 +188,27 @@ def listar_eventos():
     # Obtener IDs de eventos con precheck en una sola query
     eventos_con_precheck = set()
     if eventos:
+        from app.models_precheck import PrecheckAdicional, PrecheckConcepto
         evento_ids = [e.id for e in eventos]
-        # Query para encontrar eventos que tienen al menos un concepto o adicional
-        result = db.session.execute(text("""
-            SELECT DISTINCT evento_id FROM (
-                SELECT evento_id FROM precheck_conceptos WHERE evento_id IN :ids
-                UNION
-                SELECT evento_id FROM precheck_adicionales WHERE evento_id IN :ids
-            ) AS combined
-        """), {'ids': tuple(evento_ids)})
-        eventos_con_precheck = {row[0] for row in result}
+        # Eventos que tienen al menos un concepto o adicional
+        con_precheck = (
+            db.session.query(PrecheckConcepto.evento_id).filter(PrecheckConcepto.evento_id.in_(evento_ids))
+            .union(db.session.query(PrecheckAdicional.evento_id).filter(PrecheckAdicional.evento_id.in_(evento_ids)))
+        )
+        eventos_con_precheck = {row[0] for row in con_precheck}
 
     # Agrupar por estado para el Kanban (solo las columnas del grupo pedido)
     kanban = {estado_kanban: [] for estado_kanban in estados_grupo}
 
     from app.utils.sla import calcular_sla_evento
 
+    # Cliente recurrente y su comercial, en una sola consulta para todas las tarjetas
+    recurrencia = resumen_recurrencia({e.cliente_id for e in eventos})
+
     for evento in eventos:
         estado = evento.estado
         if estado in kanban:
-            evento_dict = evento_card_dict(evento)
+            evento_dict = evento_card_dict(evento, recurrencia)
             evento_dict['tiene_precheck'] = evento.id in eventos_con_precheck
             # Calcular SLA solo para estados que lo requieren
             sla = calcular_sla_evento(evento)
@@ -217,6 +231,7 @@ def listar_eventos():
 
 # GET /api/eventos/eliminados - Listar eventos eliminados (papelera)
 @eventos_bp.route('/eliminados', methods=['GET'])
+@login_requerido
 def listar_eliminados():
     user = get_current_user()
 
@@ -235,17 +250,27 @@ def listar_eliminados():
 
 # GET /api/eventos/:id - Detalle de un evento
 @eventos_bp.route('/<int:id>', methods=['GET'])
+@login_requerido
 def obtener_evento(id):
     evento = Evento.query.get_or_404(id)
     actividades = [a.to_dict() for a in evento.actividades.all()]
 
+    evento_dict = evento.to_dict(include_counts=True)
+    if evento_dict.get('cliente'):
+        # Recurrencia contando fichas duplicadas del mismo cliente (teléfono o mail)
+        info = resumen_recurrencia({evento.cliente_id}).get(evento.cliente_id)
+        if info:
+            evento_dict['cliente'].update(info)
+            evento_dict['es_cliente_recurrente'] = info['es_cliente_recurrente']
+
     return jsonify({
-        'evento': evento.to_dict(include_counts=True),
+        'evento': evento_dict,
         'actividades': actividades
     })
 
 # POST /api/eventos - Crear evento (manual o desde N8N)
 @eventos_bp.route('', methods=['POST'])
+@servicio_o_login
 def crear_evento():
     data = request.get_json()
 
@@ -269,20 +294,9 @@ def crear_evento():
                 'duplicado': True
             }), 200
 
-    # Buscar o crear cliente (primero por teléfono, luego por email)
-    cliente = None
+    # Buscar o crear cliente (teléfono normalizado y, si no aparece, mail)
     es_cliente_nuevo = False
-    identificador_usado = None  # Para saber cómo se identificó al cliente
-
-    if telefono:
-        # Buscar por teléfono primero
-        cliente = Cliente.query.filter_by(telefono=telefono).first()
-        identificador_usado = 'telefono'
-
-    if not cliente and email_cliente:
-        # Si no hay cliente por teléfono, buscar por email
-        cliente = Cliente.query.filter_by(email=email_cliente).first()
-        identificador_usado = 'email'
+    cliente = buscar_cliente(telefono=telefono, email=email_cliente)
 
     if not cliente:
         # Cliente nuevo: crear con los datos disponibles
@@ -343,8 +357,15 @@ def crear_evento():
         'Teléfono': 'telefono',
         'Referido': 'referido',
         'Web': 'web',
+        'Google Ads': 'google_ads',
+        'Meta': 'meta',
     }
     canal_origen = canal_map.get(canal_origen, canal_origen.lower().replace(' ', '_') if canal_origen else 'web')
+
+    # Origen del formulario web (opcional): vacío -> None, recortado al largo de la columna
+    def texto_origen(campo, largo):
+        valor = (data.get(campo) or '').strip()
+        return valor[:largo] or None
 
     # Validaciones de dependencias (sanitizar strings vacías a None)
     comercial_id = data.get('comercial_id') or None
@@ -386,6 +407,10 @@ def crear_evento():
         tipo=data.get('tipo') or None,
         estado='CONSULTA_ENTRANTE',
         canal_origen=canal_origen,
+        url_origen=texto_origen('url_origen', 600),
+        utm_campaign=texto_origen('utm_campaign', 150),
+        utm_medium=texto_origen('utm_medium', 50),
+        utm_content=texto_origen('utm_content', 200),
         mensaje_original=data.get('mensaje_original') or data.get('observacion') or None,
         thread_id=thread_id,
         comercial_id=comercial_id,
@@ -439,6 +464,7 @@ def crear_evento():
 
 # PUT /api/eventos/:id - Actualizar evento
 @eventos_bp.route('/<int:id>', methods=['PUT'])
+@login_requerido
 def actualizar_evento(id):
     evento = Evento.query.get_or_404(id)
     data = request.get_json()
@@ -603,6 +629,7 @@ def actualizar_evento(id):
 
 # POST /api/eventos/:id/actividades - Agregar actividad
 @eventos_bp.route('/<int:id>/actividades', methods=['POST'])
+@login_requerido
 def agregar_actividad(id):
     evento = Evento.query.get_or_404(id)
     data = request.get_json()
@@ -628,6 +655,7 @@ def agregar_actividad(id):
 
 # PUT /api/eventos/:id/asignar - Asignar comercial (desde el CRM)
 @eventos_bp.route('/<int:id>/asignar', methods=['PUT'])
+@login_requerido
 def asignar_comercial(id):
     evento = Evento.query.get_or_404(id)
     data = request.get_json()
@@ -677,6 +705,7 @@ def asignar_comercial(id):
 
 # PATCH /api/eventos/:id/etiquetas - Toggle rápido de etiquetas (prioritario/tentativo)
 @eventos_bp.route('/<int:id>/etiquetas', methods=['PATCH'])
+@login_requerido
 def toggle_etiquetas(id):
     """
     Toggle rápido de etiquetas desde la tarjeta del Kanban.
@@ -710,6 +739,7 @@ def toggle_etiquetas(id):
 
 # POST /api/eventos/asignar-por-respuesta - Asignar comercial desde N8N (por respuesta de Pilar)
 @eventos_bp.route('/asignar-por-respuesta', methods=['POST'])
+@servicio_requerido
 def asignar_por_respuesta():
     """
     N8N llama este endpoint cuando Pilar responde un mail poniendo en CC a un comercial.
@@ -803,6 +833,7 @@ def asignar_por_respuesta():
 
 # POST /api/eventos/migracion - Endpoint para migrar datos del CRM antiguo
 @eventos_bp.route('/migracion', methods=['POST'])
+@servicio_o_admin
 def migrar_evento():
     """
     Endpoint especial para migración de datos desde el CRM antiguo.
@@ -845,7 +876,7 @@ def migrar_evento():
 
     # Si viene teléfono, buscar por teléfono
     if telefono:
-        cliente = Cliente.query.filter_by(telefono=telefono).first()
+        cliente = buscar_cliente(telefono=telefono)
 
     # Si encontró cliente existente, actualizar datos si vienen mejores
     if cliente:
@@ -1009,6 +1040,7 @@ def migrar_evento():
 
 # GET /api/eventos/:id/transiciones - Historial de transiciones de estado
 @eventos_bp.route('/<int:id>/transiciones', methods=['GET'])
+@login_requerido
 def obtener_transiciones(id):
     """
     Retorna el historial completo de transiciones de estado de un evento,
@@ -1079,6 +1111,7 @@ def formatear_duracion(segundos):
 
 # POST /api/eventos/concluir-finalizados - Cron job para marcar eventos concluidos
 @eventos_bp.route('/concluir-finalizados', methods=['POST'])
+@servicio_o_admin
 def concluir_eventos_finalizados():
     """
     Endpoint para cron job (Cloud Scheduler).

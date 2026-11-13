@@ -9,6 +9,7 @@ from app.utils.timezone import ahora_argentina, AR_TIMEZONE
 from app.models import Usuario
 from app.models_whatsapp import WAContacto, WAConversacion, WAMensaje
 from app.utils.whatsapp_utils import normalizar_numero_argentino, whatsapp_jid_a_numero
+from app.utils.seguridad import login_requerido, servicio_requerido
 
 whatsapp_bp = Blueprint('whatsapp', __name__)
 
@@ -36,6 +37,7 @@ def test_webhook():
 
 
 @whatsapp_bp.route('/evolution', methods=['POST'])
+@servicio_requerido
 def webhook_evolution():
     """
     Endpoint webhook para recibir mensajes de Evolution API.
@@ -225,6 +227,7 @@ def webhook_evolution():
 
 
 @whatsapp_bp.route('/conversaciones', methods=['GET'])
+@login_requerido
 def obtener_conversaciones():
     """
     Obtener todas las conversaciones.
@@ -278,6 +281,7 @@ def obtener_conversaciones():
 
 
 @whatsapp_bp.route('/conversacion/<int:conversacion_id>', methods=['GET'])
+@login_requerido
 def obtener_conversacion(conversacion_id):
     """Obtener detalle de una conversación con todos sus mensajes."""
     try:
@@ -289,6 +293,7 @@ def obtener_conversacion(conversacion_id):
 
 
 @whatsapp_bp.route('/conversacion/<int:conversacion_id>/mensajes', methods=['GET'])
+@login_requerido
 def obtener_mensajes_conversacion(conversacion_id):
     """
     Obtener mensajes de una conversación con paginación.
@@ -321,6 +326,7 @@ def obtener_mensajes_conversacion(conversacion_id):
 
 
 @whatsapp_bp.route('/contacto/<int:contacto_id>', methods=['GET'])
+@login_requerido
 def obtener_contacto(contacto_id):
     """Obtener información de un contacto."""
     try:
@@ -332,6 +338,7 @@ def obtener_contacto(contacto_id):
 
 
 @whatsapp_bp.route('/contacto/<int:contacto_id>', methods=['PUT'])
+@login_requerido
 def actualizar_contacto(contacto_id):
     """Actualizar información de un contacto."""
     try:
@@ -358,6 +365,7 @@ def actualizar_contacto(contacto_id):
 
 
 @whatsapp_bp.route('/contactos', methods=['GET'])
+@login_requerido
 def listar_contactos():
     """
     Listar todos los contactos.
@@ -399,6 +407,7 @@ def listar_contactos():
 
 
 @whatsapp_bp.route('/buscar-por-numero/<numero>', methods=['GET'])
+@login_requerido
 def buscar_por_numero(numero):
     """Buscar contacto por número de teléfono."""
     try:
@@ -422,6 +431,7 @@ def buscar_por_numero(numero):
 
 
 @whatsapp_bp.route('/conversacion-por-numero/<numero>', methods=['GET'])
+@login_requerido
 def obtener_conversacion_por_numero(numero):
     """
     Buscar conversaciones y mensajes por numero de telefono del cliente.
@@ -554,6 +564,7 @@ def obtener_conversacion_por_numero(numero):
 
 
 @whatsapp_bp.route('/stats', methods=['GET'])
+@login_requerido
 def obtener_estadisticas():
     """Obtener estadísticas generales del sistema de WhatsApp."""
     try:

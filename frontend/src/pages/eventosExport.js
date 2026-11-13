@@ -53,6 +53,7 @@ export async function exportarEventosCompletoAExcel(idsFiltrados) {
     { header: 'Teléfono', key: 'telefono', width: 16 },
     { header: 'Email cliente', key: 'email_cliente', width: 28 },
     { header: 'Empresa', key: 'empresa', width: 20 },
+    { header: 'Agencia', key: 'agencia', width: 10 },
     { header: 'Notas del cliente', key: 'notas_cliente', width: 30 },
     { header: 'Cliente desde', key: 'cliente_desde', width: 16 },
     { header: 'Local', key: 'local', width: 16 },
@@ -60,6 +61,8 @@ export async function exportarEventosCompletoAExcel(idsFiltrados) {
     { header: 'Email comercial', key: 'email_comercial', width: 26 },
     { header: 'Tipo', key: 'tipo', width: 12 },
     { header: 'Canal de origen', key: 'canal', width: 14 },
+    { header: 'Campaña', key: 'campana', width: 20 },
+    { header: 'URL de origen', key: 'url_origen', width: 40 },
     { header: 'Fecha evento', key: 'fecha_evento', width: 14 },
     { header: 'Horario inicio', key: 'horario_inicio', width: 12 },
     { header: 'Horario fin', key: 'horario_fin', width: 12 },
@@ -86,6 +89,7 @@ export async function exportarEventosCompletoAExcel(idsFiltrados) {
       telefono: e.cliente?.telefono || '',
       email_cliente: e.cliente?.email || '',
       empresa: e.cliente?.empresa || '',
+      agencia: siNo(e.cliente?.es_agencia),
       notas_cliente: e.cliente?.notas || '',
       cliente_desde: fechaHora(e.cliente?.fecha_creacion),
       local: e.local?.nombre || '',
@@ -93,6 +97,8 @@ export async function exportarEventosCompletoAExcel(idsFiltrados) {
       email_comercial: e.vendedor?.email || '',
       tipo: e.tipo || '',
       canal: e.canal_origen || '',
+      campana: e.utm_campaign || '',
+      url_origen: e.url_origen || '',
       fecha_evento: e.fecha_evento || '',
       horario_inicio: e.horario_inicio || '',
       horario_fin: e.horario_fin || '',
@@ -121,7 +127,7 @@ export async function exportarEventosCompletoAExcel(idsFiltrados) {
   });
   ws.views = [{ state: 'frozen', ySplit: 1 }];
   ws.getColumn('presupuesto').numFmt = '#,##0';
-  ws.autoFilter = { from: 'A1', to: 'AC1' };
+  ws.autoFilter = { from: 'A1', to: { row: 1, column: ws.columns.length } };
 
   // 4. Descargar
   const buffer = await wb.xlsx.writeBuffer();

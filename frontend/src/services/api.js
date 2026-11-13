@@ -48,6 +48,19 @@ export const eventosApi = {
   listarEliminados: () => api.get('/eventos/eliminados'),
 };
 
+// Presupuestos adjuntos a un evento
+export const presupuestosApi = {
+  listar: (eventoId) => api.get(`/eventos/${eventoId}/presupuestos`),
+  subir: (eventoId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/eventos/${eventoId}/presupuestos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  eliminar: (eventoId, archivoId) => api.delete(`/eventos/${eventoId}/presupuestos/${archivoId}`),
+};
+
 // Clientes
 export const clientesApi = {
   listar: () => api.get('/clientes'),
@@ -65,13 +78,18 @@ export const usuariosApi = {
 // WhatsApp
 const WEBHOOK_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://crm-eventos-backend-656730419070.us-central1.run.app';
 
+const authHeaders = () => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 export const whatsappApi = {
   obtenerConversacionPorNumero: (numero, params = {}) =>
-    axios.get(`${WEBHOOK_URL}/webhook/conversacion-por-numero/${encodeURIComponent(numero)}`, { params }),
+    axios.get(`${WEBHOOK_URL}/webhook/conversacion-por-numero/${encodeURIComponent(numero)}`, { params, headers: authHeaders() }),
   obtenerConversacion: (conversacionId) =>
-    axios.get(`${WEBHOOK_URL}/webhook/conversacion/${conversacionId}`),
+    axios.get(`${WEBHOOK_URL}/webhook/conversacion/${conversacionId}`, { headers: authHeaders() }),
   obtenerMensajes: (conversacionId, limit = 100) =>
-    axios.get(`${WEBHOOK_URL}/webhook/conversacion/${conversacionId}/mensajes`, { params: { limit } }),
+    axios.get(`${WEBHOOK_URL}/webhook/conversacion/${conversacionId}/mensajes`, { params: { limit }, headers: authHeaders() }),
 };
 
 // Gmail / Conversacion Mail

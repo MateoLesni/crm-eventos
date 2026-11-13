@@ -93,6 +93,19 @@ export default function EventoCard({ evento, onClick, onPrecheckClick, onEtiquet
           <p className="card-cliente">
             {evento.cliente?.nombre || 'Sin cliente'}
           </p>
+          {(evento.cliente?.es_cliente_recurrente || evento.cliente?.es_agencia) && (
+            <div className="card-marcas">
+              {evento.cliente?.es_cliente_recurrente && (
+                <span
+                  className="card-marca recurrente"
+                  title={`${evento.cliente.cantidad_eventos} consultas de este cliente`}
+                >
+                  Recurrente{evento.cliente.comercial_preferido ? ` · ${evento.cliente.comercial_preferido.nombre.split(' ')[0]}` : ''}
+                </span>
+              )}
+              {evento.cliente?.es_agencia && <span className="card-marca agencia">Agencia</span>}
+            </div>
+          )}
         </div>
 
         <div className="card-right">

@@ -135,6 +135,7 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
       paxMin: '',
       paxMax: '',
       sla: '',
+      agencia: '',
     })
   );
   const [showFiltrosGlobales, setShowFiltrosGlobales] = useState(() =>
@@ -263,6 +264,11 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
     }
     if (filtrosGlobales.sla) {
       resultado = resultado.filter(e => e.sla_info?.status === filtrosGlobales.sla);
+    }
+    if (filtrosGlobales.agencia === 'si') {
+      resultado = resultado.filter(e => e.cliente?.es_agencia);
+    } else if (filtrosGlobales.agencia === 'no') {
+      resultado = resultado.filter(e => !e.cliente?.es_agencia);
     }
 
     return resultado;
@@ -416,6 +422,7 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
       paxMin: '',
       paxMax: '',
       sla: '',
+      agencia: '',
     });
   };
 
@@ -754,6 +761,17 @@ export default function Kanban({ busquedaGlobal = '', eventoIdDesdeNotif = null,
                 <option value="">Todos</option>
                 <option value="alerta">En alerta</option>
                 <option value="critico">Criticos</option>
+              </select>
+            </div>
+            <div className="filtro-group">
+              <label>Agencia</label>
+              <select
+                value={filtrosGlobales.agencia || ''}
+                onChange={(e) => setFiltrosGlobales({...filtrosGlobales, agencia: e.target.value})}
+              >
+                <option value="">Todos</option>
+                <option value="si">Solo agencias</option>
+                <option value="no">Sin agencias</option>
               </select>
             </div>
             <div className="filtro-group">

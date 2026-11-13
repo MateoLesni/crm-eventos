@@ -1,11 +1,13 @@
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Usuario
+from app.utils.seguridad import admin_requerido, login_requerido
 
 usuarios_bp = Blueprint('usuarios', __name__)
 
 # GET /api/usuarios - Listar usuarios (para asignación)
 @usuarios_bp.route('', methods=['GET'])
+@login_requerido
 def listar_usuarios():
     rol = request.args.get('rol')  # Filtrar por rol
 
@@ -20,6 +22,7 @@ def listar_usuarios():
 
 # POST /api/usuarios - Crear usuario (solo admin)
 @usuarios_bp.route('', methods=['POST'])
+@admin_requerido
 def crear_usuario():
     data = request.get_json()
 
@@ -44,6 +47,7 @@ def crear_usuario():
 
 # PUT /api/usuarios/:id - Actualizar usuario (nombre, telefono, rol, activo)
 @usuarios_bp.route('/<int:id>', methods=['PUT'])
+@admin_requerido
 def actualizar_usuario(id):
     usuario = Usuario.query.get_or_404(id)
     data = request.get_json()

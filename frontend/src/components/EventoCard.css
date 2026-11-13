@@ -271,3 +271,29 @@
 .evento-card.sla-critico {
   border-left: 3px solid #ef4444;
 }
+
+/* Marcas del cliente: recurrente (con su comercial) y agencia */
+.card-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.card-marca {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.card-marca.recurrente {
+  background: var(--laton-suave, #f3ebd9);
+  color: #6e5418;
+}
+
+.card-marca.agencia {
+  background: var(--botella-suave, #e3ece6);
+  color: var(--botella, #17382d);
+}

@@ -1,6 +1,8 @@
 from app import db
 from datetime import datetime
+from sqlalchemy import event
 from werkzeug.security import generate_password_hash, check_password_hash
+from app.utils.telefono import normalizar_telefono
 from app.utils.timezone import ahora_argentina
 
 # Tabla de Locales
@@ -52,10 +54,13 @@ class Cliente(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     telefono = db.Column(db.String(30), unique=True, nullable=False)  # Identificador único
+    # Últimos 10 dígitos: el mismo número llega en formatos distintos según el canal
+    telefono_normalizado = db.Column(db.String(20), index=True)
     nombre = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(120))
     empresa = db.Column(db.String(150))  # Para corporativos
     notas = db.Column(db.Text)
+    es_agencia = db.Column(db.Boolean, default=False, nullable=False)
     comercial_preferido_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'))
     created_at = db.Column(db.DateTime, default=ahora_argentina)
 
@@ -71,6 +76,7 @@ class Cliente(db.Model):
             'email': self.email,
             'empresa': self.empresa,
             'notas': self.notas,
+            'es_agencia': bool(self.es_agencia),
         }
 
     def to_dict(self):
@@ -82,10 +88,18 @@ class Cliente(db.Model):
             'email': self.email,
             'empresa': self.empresa,
             'notas': self.notas,
+            'es_agencia': bool(self.es_agencia),
             'cantidad_eventos': self.eventos.count(),
             'comercial_preferido': self.comercial_preferido.nombre if self.comercial_preferido else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+
+@event.listens_for(Cliente, 'before_insert')
+@event.listens_for(Cliente, 'before_update')
+def _completar_telefono_normalizado(mapper, connection, cliente):
+    cliente.telefono_normalizado = normalizar_telefono(cliente.telefono)
+
 
 # Tabla de Eventos (el core del CRM)
 class Evento(db.Model):
@@ -117,7 +131,14 @@ class Evento(db.Model):
     # Datos comerciales
     presupuesto = db.Column(db.Numeric(12, 2))
     fecha_presupuesto = db.Column(db.Date)
-    canal_origen = db.Column(db.String(30))  # web, mail_directo, instagram, whatsapp, telefono, referido
+    canal_origen = db.Column(db.String(30))  # web, mail_directo, instagram, whatsapp, telefono, referido, google_ads
+
+    # Origen del lead del formulario web (lo manda n8n). url_origen guarda la URL completa
+    # para poder recalcular cualquier atribución después.
+    url_origen = db.Column(db.String(600))
+    utm_campaign = db.Column(db.String(150))
+    utm_medium = db.Column(db.String(50))
+    utm_content = db.Column(db.String(200))
 
     # Datos del mail original (para trazabilidad)
     mensaje_original = db.Column(db.Text)
@@ -212,6 +233,10 @@ class Evento(db.Model):
             'presupuesto': float(self.presupuesto) if self.presupuesto else None,
             'fecha_presupuesto': self.fecha_presupuesto.isoformat() if self.fecha_presupuesto else None,
             'canal_origen': self.canal_origen,
+            'url_origen': self.url_origen,
+            'utm_campaign': self.utm_campaign,
+            'utm_medium': self.utm_medium,
+            'utm_content': self.utm_content,
             'es_prioritario': self.es_prioritario,
             'es_tentativo': self.es_tentativo,
             'motivo_rechazo': self.motivo_rechazo,
@@ -368,3 +393,32 @@ class EventoTransicion(db.Model):
             duraciones[estado] = duraciones.get(estado, 0) + duracion
 
         return duraciones
+
+
+# Presupuestos adjuntos a un evento (PDF, Excel, Word o imagen), guardados en Cloud Storage
+class EventoArchivo(db.Model):
+    __tablename__ = 'evento_archivos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    evento_id = db.Column(db.Integer, db.ForeignKey('eventos.id', ondelete='CASCADE'), nullable=False, index=True)
+    tipo = db.Column(db.String(30), nullable=False, default='presupuesto')
+    blob_path = db.Column(db.String(300), nullable=False)
+    nombre_original = db.Column(db.String(255), nullable=False)
+    content_type = db.Column(db.String(120))
+    tamano_bytes = db.Column(db.Integer)
+    subido_por_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'))
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
+
+    subido_por = db.relationship('Usuario')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'evento_id': self.evento_id,
+            'tipo': self.tipo,
+            'nombre': self.nombre_original,
+            'content_type': self.content_type,
+            'tamano_bytes': self.tamano_bytes,
+            'subido_por': self.subido_por.nombre if self.subido_por else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }

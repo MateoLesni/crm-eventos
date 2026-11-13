@@ -1,10 +1,23 @@
 import { useState, useEffect } from 'react';
-import { eventosApi, usuariosApi, clientesApi, calendarioApi } from '../services/api';
+import { eventosApi, usuariosApi, clientesApi, calendarioApi, presupuestosApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import WhatsAppChat from './WhatsAppChat';
 import GmailChat from './GmailChat';
 import PreCheckTab from './PreCheckTab';
 import './Modal.css';
+
+const CANALES = {
+  web: 'Web',
+  mail_directo: 'Mail directo',
+  instagram: 'Instagram',
+  whatsapp: 'WhatsApp',
+  telefono: 'Teléfono',
+  referido: 'Referido',
+  google_ads: 'Google Ads',
+  meta: 'Meta',
+  facebook: 'Facebook',
+  manual: 'Manual',
+};
 
 const LOCALES = [
   { id: 1, nombre: 'Costa7070' },
@@ -38,6 +51,8 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
   // Estados para editar cliente
   const [showEditarCliente, setShowEditarCliente] = useState(false);
   const [datosCliente, setDatosCliente] = useState({});
+  const [presupuestos, setPresupuestos] = useState([]);
+  const [subiendoPresupuesto, setSubiendoPresupuesto] = useState(false);
   const [guardandoCliente, setGuardandoCliente] = useState(false);
 
   // Estados para advertencia de fecha duplicada
@@ -98,8 +113,10 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
           telefono: ev.cliente.telefono || '',
           email: ev.cliente.email || '',
           empresa: ev.cliente.empresa || '',
+          es_agencia: !!ev.cliente.es_agencia,
         });
       }
+      cargarPresupuestos();
     } catch (error) {
       console.error('Error cargando detalle:', error);
     } finally {
@@ -107,7 +124,54 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
     }
   };
 
+  const cargarPresupuestos = async () => {
+    try {
+      const res = await presupuestosApi.listar(evento.id);
+      setPresupuestos(res.data.archivos || []);
+    } catch {
+      // Sin acceso (evento de otra comercial) o sin archivos: la sección queda vacía
+      setPresupuestos([]);
+    }
+  };
+
+  const handleSubirPresupuesto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setSubiendoPresupuesto(true);
+    try {
+      await presupuestosApi.subir(evento.id, file);
+      cargarPresupuestos();
+    } catch (error) {
+      alert(error.response?.data?.error || 'No se pudo adjuntar el presupuesto');
+    } finally {
+      setSubiendoPresupuesto(false);
+    }
+  };
+
+  const handleEliminarPresupuesto = async (archivo) => {
+    if (!window.confirm(`¿Eliminar "${archivo.nombre}"?`)) return;
+    try {
+      await presupuestosApi.eliminar(evento.id, archivo.id);
+      cargarPresupuestos();
+    } catch (error) {
+      alert(error.response?.data?.error || 'No se pudo eliminar el presupuesto');
+    }
+  };
+
+  // Si el cliente ya trabajó con otro comercial, pedir confirmación antes de asignar
+  const confirmarComercialDistinto = (nuevoId) => {
+    const preferido = eventoDetalle?.cliente?.comercial_preferido;
+    if (!nuevoId || !preferido?.id || String(preferido.id) === String(nuevoId)) return true;
+    const nuevo = comerciales.find((c) => String(c.id) === String(nuevoId));
+    return window.confirm(
+      `${eventoDetalle.cliente.nombre} ya trabajó con ${preferido.nombre}. ` +
+      `¿Asignar igual a ${nuevo?.nombre || 'otro comercial'}?`
+    );
+  };
+
   const handleAsignar = async (comercialId) => {
+    if (!confirmarComercialDistinto(comercialId)) return;
     try {
       await eventosApi.asignar(evento.id, comercialId);
       cargarDatos();
@@ -201,6 +265,9 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
       alert('Para asignar horario, primero debe asignar un comercial.');
       return;
     }
+
+    const cambiaComercial = String(datosEdicion.comercial_id || '') !== String(eventoDetalle?.comercial?.id || '');
+    if (cambiaComercial && !confirmarComercialDistinto(datosEdicion.comercial_id)) return;
 
     // Verificar si la fecha está ocupada
     const puedeGuardar = await verificarFechaYGuardar(datosEdicion);
@@ -342,7 +409,16 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
           <div className="modal-header">
             <h2>{eventoDetalle?.titulo_display || eventoDetalle?.titulo || `Evento de ${eventoDetalle?.cliente?.nombre}`}</h2>
             {eventoDetalle?.es_cliente_recurrente && (
-              <span className="badge-recurrente-large">Cliente Recurrente</span>
+              <span
+                className="badge-recurrente-large"
+                title={eventoDetalle?.cliente?.comercial_preferido ? `Trabajó con ${eventoDetalle.cliente.comercial_preferido.nombre}` : undefined}
+              >
+                Cliente Recurrente
+                {eventoDetalle?.cliente?.comercial_preferido && ` · ${eventoDetalle.cliente.comercial_preferido.nombre}`}
+              </span>
+            )}
+            {eventoDetalle?.cliente?.es_agencia && (
+              <span className="badge-agencia-large">Agencia</span>
             )}
             <span className={`badge-estado estado-${eventoDetalle?.estado?.toLowerCase()}`}>
               {eventoDetalle?.estado}
@@ -474,8 +550,14 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                     </div>
                     <div className="info-item">
                       <label>Canal</label>
-                      <span>{eventoDetalle?.canal_origen || '-'}</span>
+                      <span>{CANALES[eventoDetalle?.canal_origen] || eventoDetalle?.canal_origen || '-'}</span>
                     </div>
+                    {eventoDetalle?.utm_campaign && (
+                      <div className="info-item">
+                        <label>Campaña</label>
+                        <span title={eventoDetalle.url_origen || undefined}>{eventoDetalle.utm_campaign}</span>
+                      </div>
+                    )}
                   </div>
                 </section>
 
@@ -494,6 +576,45 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                       ))}
                     </select>
                   </div>
+                </section>
+
+                {/* Presupuestos adjuntos */}
+                <section className="modal-section">
+                  <div className="section-header">
+                    <h3>Presupuestos</h3>
+                    <label className={`btn-adjuntar ${subiendoPresupuesto ? 'disabled' : ''}`}>
+                      {subiendoPresupuesto ? 'Subiendo…' : 'Adjuntar'}
+                      <input
+                        type="file"
+                        accept=".pdf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg"
+                        onChange={handleSubirPresupuesto}
+                        disabled={subiendoPresupuesto}
+                        hidden
+                      />
+                    </label>
+                  </div>
+                  {presupuestos.length === 0 ? (
+                    <p className="presupuestos-vacio">Todavía no hay presupuestos adjuntos.</p>
+                  ) : (
+                    <ul className="presupuestos-lista">
+                      {presupuestos.map((p) => (
+                        <li key={p.id}>
+                          <a href={p.url} target="_blank" rel="noopener noreferrer">{p.nombre}</a>
+                          <span className="presupuesto-meta">
+                            {p.subido_por || ''}{p.created_at ? ` · ${new Date(p.created_at).toLocaleDateString('es-AR')}` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-quitar-presupuesto"
+                            onClick={() => handleEliminarPresupuesto(p)}
+                            title="Eliminar"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </section>
 
                 {/* Agregar Actividad */}
@@ -968,6 +1089,18 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                     onChange={(e) => setDatosCliente({...datosCliente, empresa: e.target.value})}
                     placeholder="Nombre de la empresa (opcional)"
                   />
+                </div>
+
+                <div className="form-group form-group-check">
+                  <label htmlFor="edit-cliente-agencia">
+                    <input
+                      type="checkbox"
+                      id="edit-cliente-agencia"
+                      checked={!!datosCliente.es_agencia}
+                      onChange={(e) => setDatosCliente({...datosCliente, es_agencia: e.target.checked})}
+                    />
+                    Es una agencia
+                  </label>
                 </div>
               </section>
 

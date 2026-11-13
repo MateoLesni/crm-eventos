@@ -3,12 +3,14 @@ from app import db
 from app.models import ConversacionMail
 from datetime import datetime
 from sqlalchemy.dialects.mysql import insert
+from app.utils.seguridad import login_requerido, servicio_requerido
 
 conversacion_mail_bp = Blueprint('conversacion_mail', __name__)
 
 
 # POST /api/conversacion-mail - Guardar mensajes (upsert)
 @conversacion_mail_bp.route('', methods=['POST'])
+@servicio_requerido
 def guardar_mensajes():
     """
     Endpoint para guardar mensajes de Gmail con upsert.
@@ -132,6 +134,7 @@ def guardar_mensajes():
 
 # GET /api/conversacion-mail/:thread_id - Obtener mensajes de un thread
 @conversacion_mail_bp.route('/<thread_id>', methods=['GET'])
+@login_requerido
 def obtener_conversacion(thread_id):
     """
     Obtiene todos los mensajes de un thread ordenados por fecha/hora.

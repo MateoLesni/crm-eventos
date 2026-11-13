@@ -7,11 +7,13 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 from decimal import Decimal
 from app.utils.timezone import hoy_argentina
+from app.utils.seguridad import admin_requerido
 
 reportes_bp = Blueprint('reportes', __name__)
 
 
 @reportes_bp.route('', methods=['GET'])
+@admin_requerido
 def obtener_reportes():
     """
     Endpoint principal de reportes para el dashboard admin.
@@ -546,6 +548,7 @@ def calcular_distribucion_locales(fecha_desde, fecha_hasta, agrupacion='diario')
 # ============================================================
 
 @reportes_bp.route('/financiero', methods=['GET'])
+@admin_requerido
 def obtener_reportes_financieros():
     """
     Reportes financieros para el CEO.

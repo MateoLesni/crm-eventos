@@ -1337,3 +1337,110 @@
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Marca de agencia en el encabezado del evento */
+.badge-agencia-large {
+  background-color: var(--botella-suave, #e3ece6);
+  color: var(--botella, #17382d);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+/* Checkbox dentro de un form-group (no ocupa todo el ancho) */
+.form-group-check label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.form-group-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--botella, #17382d);
+}
+
+/* Presupuestos adjuntos */
+.btn-adjuntar {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border: 1px solid var(--linea, #d8dad1);
+  border-radius: 7px;
+  color: var(--botella, #17382d);
+  background: var(--papel, #fff);
+  cursor: pointer;
+}
+
+.btn-adjuntar:hover {
+  border-color: var(--botella, #17382d);
+  background: var(--botella-suave, #e3ece6);
+}
+
+.btn-adjuntar.disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.presupuestos-vacio {
+  font-size: 13px;
+  color: var(--tinta-tenue, #8d9288);
+  margin: 0;
+}
+
+.presupuestos-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.presupuestos-lista li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--linea, #d8dad1);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.presupuestos-lista a {
+  color: var(--botella, #17382d);
+  font-weight: 600;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.presupuestos-lista a:hover {
+  text-decoration: underline;
+}
+
+.presupuesto-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--tinta-tenue, #8d9288);
+  white-space: nowrap;
+}
+
+.btn-quitar-presupuesto {
+  border: none;
+  background: transparent;
+  color: var(--tinta-tenue, #8d9288);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.btn-quitar-presupuesto:hover {
+  color: var(--vino, #8c2443);
+}

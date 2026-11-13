@@ -6,6 +6,7 @@ from app import db
 from app.models import Evento, Local, Cliente
 from app.routes.auth import get_current_user_from_token
 from sqlalchemy.orm import joinedload
+from app.utils.seguridad import login_requerido
 
 calendario_bp = Blueprint('calendario', __name__)
 
@@ -15,6 +16,7 @@ def get_current_user():
 
 
 @calendario_bp.route('/eventos', methods=['GET'])
+@login_requerido
 def listar_eventos_calendario():
     """
     Obtener eventos para el calendario.
@@ -68,6 +70,7 @@ def listar_eventos_calendario():
 
 
 @calendario_bp.route('/verificar-fecha', methods=['GET'])
+@login_requerido
 def verificar_fecha_ocupada():
     """
     Verificar si hay eventos cotizados/aprobados en una fecha específica para un local.

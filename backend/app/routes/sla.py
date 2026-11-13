@@ -13,11 +13,13 @@ from app.utils.sla import calcular_sla_evento, SLA_CONFIG
 from app.utils.timezone import ahora_argentina
 from sqlalchemy.orm import joinedload
 from datetime import datetime
+from app.utils.seguridad import admin_requerido, login_requerido, servicio_o_admin
 
 sla_bp = Blueprint('sla', __name__)
 
 
 @sla_bp.route('/notificaciones', methods=['GET'])
+@login_requerido
 def obtener_notificaciones():
     """
     Obtener resumen de alertas SLA para el usuario actual.
@@ -87,6 +89,7 @@ def obtener_notificaciones():
 
 
 @sla_bp.route('/check-violations', methods=['POST'])
+@servicio_o_admin
 def check_violations():
     """
     Cron job: escanea eventos activos y registra violaciones SLA críticas.
@@ -136,6 +139,7 @@ def check_violations():
 
 
 @sla_bp.route('/violations', methods=['GET'])
+@admin_requerido
 def listar_violations():
     """
     Historial de violaciones SLA para informes del CEO.
@@ -143,10 +147,6 @@ def listar_violations():
     Solo accesible para admins.
     """
     try:
-        user = get_current_user_from_token()
-        if not user or user.rol != 'admin':
-            return jsonify({'error': 'Solo administradores'}), 403
-
         fecha_desde_str = request.args.get('fecha_desde')
         fecha_hasta_str = request.args.get('fecha_hasta')
         comercial_id = request.args.get('comercial_id', type=int)
