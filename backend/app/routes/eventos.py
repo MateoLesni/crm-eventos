@@ -145,7 +145,7 @@ def calcular_estado_automatico(evento, es_nuevo=False):
 
 # GET /api/eventos - Listar eventos (Kanban)
 @eventos_bp.route('', methods=['GET'])
-@login_requerido
+@servicio_o_login
 def listar_eventos():
     user = get_current_user()
 
