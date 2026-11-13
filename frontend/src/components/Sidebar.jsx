@@ -102,6 +102,16 @@ export default function Sidebar() {
         {isAdmin && (
           <>
             <button
+              className={`nav-item ${isActive('/metricas') ? 'active' : ''}`}
+              title="Métricas"
+              onClick={() => navigate('/metricas')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 3v18h18"/>
+                <path d="M7 15l4-4 3 3 5-6"/>
+              </svg>
+            </button>
+            <button
               className={`nav-item ${isActive('/reportes') ? 'active' : ''}`}
               title="Reportes Operativos"
               onClick={() => navigate('/reportes')}

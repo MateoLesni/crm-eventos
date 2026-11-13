@@ -25,6 +25,10 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(eventos_bp, url_prefix='/api/eventos')
 
+    # Dataset de la página de Métricas (solo admin)
+    from app.routes.metricas import metricas_bp
+    app.register_blueprint(metricas_bp, url_prefix='/api/metricas')
+
     # Presupuestos adjuntos a cada evento
     from app.routes.evento_archivos import evento_archivos_bp
     app.register_blueprint(evento_archivos_bp, url_prefix='/api/eventos')

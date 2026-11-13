@@ -48,6 +48,11 @@ export const eventosApi = {
   listarEliminados: () => api.get('/eventos/eliminados'),
 };
 
+// Métricas (solo admin): un registro por evento para calcular y abrir cada número
+export const metricasApi = {
+  dataset: () => api.get('/metricas/dataset'),
+};
+
 // Presupuestos adjuntos a un evento
 export const presupuestosApi = {
   listar: (eventoId) => api.get(`/eventos/${eventoId}/presupuestos`),
