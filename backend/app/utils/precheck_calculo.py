@@ -53,7 +53,7 @@ def proximo_dia_habil(fecha):
 
 
 def factor_total(evento, config=None):
-    """Multiplicador que lleva de subtotal a total (IVA + propina). El IVA sale del catálogo (21% por defecto)."""
+    """Multiplicador promedio de subtotal a total (IVA + propina), para una línea que lleva IVA."""
     from app.models_precheck import leer_config
     config = config if config is not None else leer_config()
     pc = getattr(evento, 'precheck', None)
@@ -77,20 +77,47 @@ def parametros_pago(evento, config):
     return sena, dias
 
 
+def desglose_lineas(evento, config):
+    """
+    Calcula cada línea por separado: comisión del intermediario, IVA (si el evento se factura
+    y la línea lleva IVA) y propina. Devuelve listas de dicts con los montos.
+    """
+    pc = getattr(evento, 'precheck', None)
+    tasa_iva = _d(config.get('iva_porcentaje') or 21) / 100
+    tasa_propina = _d(pc.propina_porcentaje) / 100 if pc else Decimal('0')
+    factura = bool(evento.facturada)
+
+    def linea(obj, neto, lleva_iva, comision_pct=None):
+        comision = neto * _d(comision_pct) / 100 if comision_pct else Decimal('0')
+        base = neto - comision
+        iva = base * tasa_iva if (factura and lleva_iva) else Decimal('0')
+        propina = base * tasa_propina
+        return {'obj': obj, 'neto': neto, 'comision': comision, 'base': base,
+                'iva': iva, 'propina': propina, 'total': base + iva + propina}
+
+    conceptos = [linea(c, c.subtotal, c.lleva_iva, c.comision_porcentaje) for c in evento.precheck_conceptos]
+    adicionales = [linea(a, _d(a.monto), a.lleva_iva) for a in evento.precheck_adicionales]
+    return conceptos, adicionales, tasa_iva, tasa_propina
+
+
 def calcular_resumen(evento, hoy=None):
     from app.models_precheck import leer_config
     hoy = hoy or date.today()
-    conceptos = list(evento.precheck_conceptos)
-    adicionales = list(evento.precheck_adicionales)
+    config = leer_config()
+    pc = getattr(evento, 'precheck', None)
+    conceptos, adicionales, tasa_iva, tasa_propina = desglose_lineas(evento, config)
     pagos = list(evento.precheck_pagos)
 
-    config = leer_config()
-    total_conceptos = sum((c.subtotal for c in conceptos), Decimal('0'))
-    total_adicionales = sum((_d(a.monto) for a in adicionales), Decimal('0'))
-    subtotal = total_conceptos + total_adicionales
-    factor, tasa_iva, tasa_propina = factor_total(evento, config)
-    iva = subtotal * tasa_iva
-    propina = subtotal * tasa_propina
+    def suma(lineas, campo):
+        return sum((l[campo] for l in lineas), Decimal('0'))
+
+    todas = conceptos + adicionales
+    total_conceptos = suma(conceptos, 'neto')
+    total_adicionales = suma(adicionales, 'neto')
+    comision = suma(conceptos, 'comision')
+    subtotal = total_conceptos - comision + total_adicionales
+    iva = suma(todas, 'iva')
+    propina = suma(todas, 'propina')
     total = subtotal + iva + propina
 
     validados = sorted([p for p in pagos if p.estado == 'VALIDADO'], key=lambda p: (p.fecha_pago or date.max, p.id))
@@ -100,24 +127,30 @@ def calcular_resumen(evento, hoy=None):
 
     # ---- Plan de pagos
     sena_porcentaje, dias_saldo = parametros_pago(evento, config)
-    sena_pct = sena_porcentaje / 100
-    # El ajuste por IPC se cobra con el saldo: no cambia el monto de la seña
-    total_ipc = sum((c.subtotal for c in conceptos if c.es_ajuste_ipc), Decimal('0'))
-    contratado = (total_conceptos - total_ipc) * factor
-    sena = contratado * sena_pct
-    extras = total_adicionales * factor
+    contratadas = [l for l in conceptos if not l['obj'].es_ajuste_ipc and not l['obj'].cobro_aparte]
+    ipc = [l for l in conceptos if l['obj'].es_ajuste_ipc]
+    aparte = [l for l in conceptos if l['obj'].cobro_aparte and not l['obj'].es_ajuste_ipc]
+    contratado = suma(contratadas, 'total')
+    sena_fija = pc is not None and pc.sena_monto is not None
+    sena = _d(pc.sena_monto) if sena_fija else contratado * sena_porcentaje / 100
+    total_ipc = suma(ipc, 'total')
     fecha_evento = evento.fecha_evento
+    etiqueta_sena = 'Seña' if sena_fija else f'Seña ({_r(sena_porcentaje):g}%)'
     cuotas = [
-        {'concepto': f'Seña ({_r(sena_pct * 100):g}%)', 'monto': sena, 'vence': None},
+        {'concepto': etiqueta_sena, 'monto': sena, 'vence': None},
         {'concepto': 'Saldo' + (' (incluye ajuste IPC)' if total_ipc else ''),
-         'monto': contratado - sena + total_ipc * factor,
+         'monto': contratado - sena + total_ipc,
          'vence': fecha_evento - timedelta(days=dias_saldo) if fecha_evento else None},
     ]
+    extras = suma(adicionales, 'total')
     if extras:
         vence_extras = None
         if fecha_evento:
             vence_extras = proximo_dia_habil(fecha_evento) if evento.facturada else fecha_evento
         cuotas.append({'concepto': 'Adicionales del evento', 'monto': extras, 'vence': vence_extras})
+    total_aparte = suma(aparte, 'total')
+    if total_aparte:
+        cuotas.append({'concepto': 'Se cobra aparte', 'monto': total_aparte, 'vence': None})
 
     disponible = total_pagado
     plan = []
@@ -143,22 +176,33 @@ def calcular_resumen(evento, hoy=None):
             'estado': estado,
         })
 
+    neto_contratado = suma(contratadas, 'neto') + suma(ipc, 'neto') - suma(contratadas, 'comision')
+    factor_contratado = (contratado + total_ipc) / neto_contratado if neto_contratado else Decimal('1')
+
     return {
         'total_conceptos': _r(total_conceptos),
         'total_adicionales': _r(total_adicionales),
+        'comision': _r(comision),
+        'intermediario': pc.intermediario if pc else None,
         'subtotal': _r(subtotal),
         'iva': _r(iva),
         'propina': _r(propina),
         'propina_porcentaje': _r(tasa_propina * 100),
-        'iva_porcentaje': _r(tasa_iva * 100) if evento.facturada else _r(_d(config.get('iva_porcentaje') or 21)),
+        'propina_sugerida_porcentaje': _r(_d(config.get('propina_sugerida_porcentaje') or 0)),
+        'iva_porcentaje': _r(tasa_iva * 100),
         'sena_porcentaje': _r(sena_porcentaje),
+        'sena_monto_fijo': _r(sena) if sena_fija else None,
         'dias_saldo_antes_evento': dias_saldo,
         'total': _r(total),
+        'total_aparte': _r(total_aparte),
         'total_pagado': _r(total_pagado),
         'en_revision': _r(en_revision),
         'pendiente': _r(pendiente),
         'fecha_sena': validados[0].fecha_pago.isoformat() if validados and validados[0].fecha_pago else None,
         'plan_pagos': plan,
+        'factor_contratado': float(factor_contratado),
+        'lineas': {l['obj'].id: {'iva': _r(l['iva']), 'comision': _r(l['comision']), 'total': _r(l['total'])}
+                   for l in conceptos if l['obj'].id},
         'cantidad_conceptos': len(conceptos),
         'cantidad_adicionales': len(adicionales),
         'cantidad_pagos': len(pagos),
@@ -212,6 +256,15 @@ def calcular_alertas(evento, resumen, hoy=None):
     if resumen['en_revision'] > 0:
         alerta('info', f"Hay ${resumen['en_revision']:,.0f} en pagos esperando validación de tesorería.".replace(',', '.'))
 
+    # Cocina necesita la hoja de ruta 10 días antes
+    hoja = getattr(evento, 'hoja_ruta', None)
+    if evento.fecha_evento and 0 <= (evento.fecha_evento - hoy).days <= 10:
+        faltan = (evento.fecha_evento - hoy).days
+        if hoja is None or not hoja.version:
+            alerta('error', f'Faltan {faltan} días y la hoja de ruta todavía no se envió al local (cocina la necesita 10 días antes).')
+        elif hoja.cambios_sin_enviar:
+            alerta('aviso', f'La hoja de ruta tiene cambios sin enviar (última enviada: v{hoja.version}).')
+
     if evento.fecha_evento and hoy > evento.fecha_evento:
         cierre = proximo_dia_habil(evento.fecha_evento)
         alerta('aviso', f'El evento ya pasó: el pre-check se cierra el {cierre:%d/%m} (primer día hábil), con los adicionales cargados.')
@@ -244,9 +297,11 @@ def calcular_ipc_pendiente(evento, resumen):
     else:
         fecha_base = date.fromisoformat(resumen['fecha_sena'])
 
-    factor, _, _ = factor_total(evento)
-    ajustable = sum((c.subtotal for c in conceptos if c.ajusta_ipc and not c.es_ajuste_ipc), Decimal('0'))
-    contratado_neto = sum((c.subtotal for c in conceptos), Decimal('0'))
+    factor = _d(resumen.get('factor_contratado') or 1) or Decimal('1')
+    plan_ipc = [c for c in conceptos if not c.cobro_aparte]
+    ajustable = sum((c.subtotal * (1 - _d(c.comision_porcentaje) / 100) for c in plan_ipc
+                     if c.ajusta_ipc and not c.es_ajuste_ipc), Decimal('0'))
+    contratado_neto = sum((c.subtotal * (1 - _d(c.comision_porcentaje) / 100) for c in plan_ipc), Decimal('0'))
     pagado_neto = _d(resumen['total_pagado']) / factor
     saldo_neto = max(contratado_neto - pagado_neto, Decimal('0'))
     base = min(ajustable, saldo_neto)

@@ -12,6 +12,7 @@ PUT    /api/catalogo/sectores/<id>
 GET    /api/catalogo/config
 PUT    /api/catalogo/config
 """
+import json
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, g, jsonify, request
@@ -80,6 +81,29 @@ def listar_items():
                     'modalidades': MODALIDADES}), 200
 
 
+def _composicion_valida(valor):
+    """
+    Detalle del menú para la hoja de ruta: lista de bloques {titulo, items: [{nombre, por_pax}]}.
+    Se limpia lo vacío y se guarda como JSON (o None si no queda nada).
+    """
+    if valor in (None, '', []):
+        return None
+    if not isinstance(valor, list):
+        raise ValueError('La composición tiene que ser una lista de bloques')
+    bloques = []
+    for b in valor[:30]:
+        if not isinstance(b, dict):
+            continue
+        items = []
+        for it in (b.get('items') or [])[:80]:
+            if isinstance(it, dict) and (it.get('nombre') or '').strip():
+                items.append({'nombre': it['nombre'].strip()[:200], 'por_pax': (str(it.get('por_pax') or '')).strip()[:30]})
+        titulo = (b.get('titulo') or '').strip()[:100]
+        if titulo or items:
+            bloques.append({'titulo': titulo, 'items': items})
+    return json.dumps(bloques, ensure_ascii=False) if bloques else None
+
+
 def _aplicar_item(item, data):
     if 'local_id' in data:
         item.local_id = _local_valido(data['local_id'])
@@ -102,6 +126,10 @@ def _aplicar_item(item, data):
         item.precio = _decimal(data['precio'], 'Precio')
     if 'ajusta_ipc' in data:
         item.ajusta_ipc = bool(data['ajusta_ipc'])
+    if 'lleva_iva' in data:
+        item.lleva_iva = bool(data['lleva_iva'])
+    if 'composicion' in data:
+        item.composicion = _composicion_valida(data['composicion'])
     if 'activo' in data:
         item.activo = bool(data['activo'])
     if 'orden' in data:
@@ -246,6 +274,7 @@ def _config_respuesta():
         'sena_porcentaje': float(valores.get('sena_porcentaje') or 50),
         'dias_saldo_antes_evento': int(float(valores.get('dias_saldo_antes_evento') or 7)),
         'iva_porcentaje': float(valores.get('iva_porcentaje') or 21),
+        'propina_sugerida_porcentaje': float(valores.get('propina_sugerida_porcentaje') or 0),
         'ipc_activo_por_defecto': str(valores.get('ipc_activo_por_defecto') or '0') in ('1', 'true'),
         'condiciones': valores.get('condiciones') or '',
         'propinas': [{'local_id': l.id, 'local': l.nombre,
@@ -265,6 +294,7 @@ ETIQUETAS = {
     'sena_porcentaje': ('Seña', '%'),
     'dias_saldo_antes_evento': ('Vencimiento del saldo', ' días antes'),
     'iva_porcentaje': ('IVA', '%'),
+    'propina_sugerida_porcentaje': ('Propina sugerida', '%'),
     'ipc_activo_por_defecto': ('IPC activado por defecto', ''),
     'condiciones': ('Condiciones y políticas de pago', ''),
 }
@@ -314,6 +344,9 @@ def actualizar_config():
             _guardar('dias_saldo_antes_evento', str(dias), cambios)
         if 'iva_porcentaje' in data:
             _guardar('iva_porcentaje', numero_limpio(_decimal(data['iva_porcentaje'], 'IVA', minimo=0, maximo=50)), cambios)
+        if 'propina_sugerida_porcentaje' in data:
+            _guardar('propina_sugerida_porcentaje',
+                     numero_limpio(_decimal(data['propina_sugerida_porcentaje'] or 0, 'Propina sugerida', minimo=0, maximo=30)), cambios)
         if 'ipc_activo_por_defecto' in data:
             _guardar('ipc_activo_por_defecto', '1' if data['ipc_activo_por_defecto'] else '0', cambios)
         if 'condiciones' in data:

@@ -2,7 +2,75 @@ import { useEffect, useMemo, useState } from 'react';
 import { catalogoApi, localesApi } from '../services/api';
 import './Catalogo.css';
 
-const MODALIDADES = { por_persona: 'Por persona', por_unidad: 'Por unidad', fijo: 'Precio fijo' };
+const MODALIDADES = { por_persona: 'Por persona', por_unidad: 'Por unidad', fijo: 'Precio fijo', paquete: 'Paquete (precio cerrado)' };
+
+// Editor del detalle que va a la hoja de ruta: bloques (Bocados, Postre, Estación 1…) con sus platos
+function EditorComposicion({ item, onGuardar, onCerrar }) {
+  const [bloques, setBloques] = useState(() => (item.composicion?.length ? item.composicion : [{ titulo: '', items: [] }])
+    .map((b) => ({ titulo: b.titulo || '', items: (b.items || []).map((i) => ({ ...i })) })));
+  const [guardando, setGuardando] = useState(false);
+
+  const cambiarBloque = (bi, cambios) => setBloques(bloques.map((b, i) => (i === bi ? { ...b, ...cambios } : b)));
+  const cambiarItem = (bi, ii, cambios) => cambiarBloque(bi, { items: bloques[bi].items.map((it, j) => (j === ii ? { ...it, ...cambios } : it)) });
+
+  // Pegar una lista (uno por renglón) agrega todos los platos de una
+  const pegarLista = (bi, texto) => {
+    const nuevos = texto.split('\n').map((t) => t.trim()).filter(Boolean).map((nombre) => ({ nombre, por_pax: '' }));
+    if (nuevos.length > 1) {
+      cambiarBloque(bi, { items: [...bloques[bi].items.filter((i) => i.nombre.trim()), ...nuevos] });
+      return true;
+    }
+    return false;
+  };
+
+  const guardar = async () => {
+    setGuardando(true);
+    try {
+      await onGuardar(bloques);
+      onCerrar();
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="cat-composicion">
+      <div className="cat-comp-cab">
+        <strong>Detalle para la hoja de ruta: {item.nombre}</strong>
+        <span className="cat-ayuda">
+          Lo que se carga acá aparece armado en la hoja de ruta cuando el comercial elige este ítem. "Por pax" acepta 1, 2, 0,5 o "1 cada 2";
+          la cantidad se calcula con las personas del evento. Podés pegar una lista (un plato por renglón).
+        </span>
+      </div>
+      {bloques.map((b, bi) => (
+        <div key={bi} className="cat-comp-bloque">
+          <div className="cat-comp-titulo">
+            <input placeholder="Bloque (ej.: Bocados, Fríos, Estación 1, Postre)" value={b.titulo}
+              onChange={(e) => cambiarBloque(bi, { titulo: e.target.value })} />
+            <button className="cat-btn chico" onClick={() => setBloques(bloques.filter((_, i) => i !== bi))}>Quitar bloque</button>
+          </div>
+          {b.items.map((it, ii) => (
+            <div key={ii} className="cat-comp-item">
+              <input placeholder="Plato / trago" value={it.nombre}
+                onPaste={(e) => { if (pegarLista(bi, e.clipboardData.getData('text'))) e.preventDefault(); }}
+                onChange={(e) => cambiarItem(bi, ii, { nombre: e.target.value })} />
+              <input className="cat-comp-pax" placeholder="Por pax" value={it.por_pax || ''}
+                onChange={(e) => cambiarItem(bi, ii, { por_pax: e.target.value })} />
+              <button className="cat-btn chico" aria-label="Quitar" onClick={() => cambiarBloque(bi, { items: b.items.filter((_, j) => j !== ii) })}>×</button>
+            </div>
+          ))}
+          <button className="cat-btn chico" onClick={() => cambiarBloque(bi, { items: [...b.items, { nombre: '', por_pax: '1' }] })}>+ Plato</button>
+        </div>
+      ))}
+      <div className="cat-comp-pie">
+        <button className="cat-btn" onClick={() => setBloques([...bloques, { titulo: '', items: [] }])}>+ Bloque</button>
+        <span className="cat-espacio" />
+        <button className="cat-btn" onClick={onCerrar}>Cancelar</button>
+        <button className="cat-btn primario" onClick={guardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar detalle'}</button>
+      </div>
+    </div>
+  );
+}
 
 const pesos = (v) =>
   v === null || v === undefined || v === ''
@@ -34,9 +102,9 @@ function errorDe(err, porDefecto) {
 
 // ==================== LISTA DE PRECIOS ====================
 
-const ITEM_VACIO = { local_id: '', categoria: 'Menú', nombre: '', descripcion: '', modalidad: 'por_persona', precio: '', ajusta_ipc: true, activo: true };
+const ITEM_VACIO = { local_id: '', categoria: 'Menú', nombre: '', descripcion: '', modalidad: 'por_persona', precio: '', ajusta_ipc: true, lleva_iva: true, activo: true };
 
-function ListaPrecios({ locales }) {
+function ListaPrecios({ locales, ivaPct }) {
   const [items, setItems] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -48,6 +116,8 @@ function ListaPrecios({ locales }) {
   const [form, setForm] = useState(ITEM_VACIO);
   const [guardando, setGuardando] = useState(false);
   const [copia, setCopia] = useState({ abierta: false, desde: '', hacia: '' });
+  const [composicionDe, setComposicionDe] = useState(null);
+  const [precioConIva, setPrecioConIva] = useState(false);
 
   const cargar = () =>
     catalogoApi.items({ incluir_inactivos: 1 }).then((r) => {
@@ -136,7 +206,14 @@ function ListaPrecios({ locales }) {
           {Object.entries(MODALIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </td>
-      <td><InputPesos value={form.precio} onChange={(v) => setForm({ ...form, precio: v })} className="cat-num" /></td>
+      <td>
+        <InputPesos value={form.precio === '' ? '' : (precioConIva ? Math.round(form.precio * (1 + ivaPct / 100)) : form.precio)}
+          onChange={(v) => setForm({ ...form, precio: v === '' ? '' : (precioConIva ? Math.round((v / (1 + ivaPct / 100)) * 100) / 100 : v) })}
+          className="cat-num" />
+        <label className="cat-mini">
+          <input type="checkbox" checked={precioConIva} onChange={(e) => setPrecioConIva(e.target.checked)} /> escribo el precio con IVA
+        </label>
+      </td>
       <td>
         <select value={form.local_id} onChange={(e) => setForm({ ...form, local_id: e.target.value })}>
           <option value="">Todos los locales</option>
@@ -145,6 +222,9 @@ function ListaPrecios({ locales }) {
       </td>
       <td className="cat-centro">
         <input type="checkbox" checked={form.ajusta_ipc} onChange={(e) => setForm({ ...form, ajusta_ipc: e.target.checked })} title="Se ajusta por IPC" />
+      </td>
+      <td className="cat-centro">
+        <input type="checkbox" checked={form.lleva_iva} onChange={(e) => setForm({ ...form, lleva_iva: e.target.checked })} title="Lleva IVA cuando el evento se factura" />
       </td>
       <td className="cat-acciones">
         <button className="cat-btn primario" onClick={guardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar'}</button>
@@ -204,19 +284,33 @@ function ListaPrecios({ locales }) {
               <th className="cat-der">Precio</th>
               <th>Local</th>
               <th className="cat-centro" title="Se ajusta por IPC sobre el saldo">IPC</th>
+              <th className="cat-centro" title="Lleva IVA cuando el evento se factura">IVA</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {editando === 'nuevo' && filaFormulario}
             {visibles.length === 0 && editando !== 'nuevo' && (
-              <tr><td colSpan={7} className="cat-vacio">
+              <tr><td colSpan={8} className="cat-vacio">
                 {items.length === 0 ? 'Todavía no hay ítems. Cargá el primero con "+ Nuevo ítem".' : 'No hay ítems con esos filtros.'}
               </td></tr>
             )}
             {visibles.map((i) =>
               editando === i.id ? (
                 <tr key={i.id} className="cat-fila-form">{filaFormulario.props.children}</tr>
+              ) : composicionDe === i.id ? (
+                <tr key={i.id}><td colSpan={8}>
+                  <EditorComposicion item={i} onCerrar={() => setComposicionDe(null)}
+                    onGuardar={async (bloques) => {
+                      try {
+                        await catalogoApi.actualizarItem(i.id, { composicion: bloques });
+                        await cargar();
+                      } catch (err) {
+                        alert(errorDe(err, 'No se pudo guardar el detalle'));
+                        throw err;
+                      }
+                    }} />
+                </td></tr>
               ) : (
                 <tr key={i.id} className={i.activo ? '' : 'cat-inactivo'}>
                   <td><span className="cat-rubro">{i.categoria}</span></td>
@@ -225,10 +319,20 @@ function ListaPrecios({ locales }) {
                     {i.descripcion && <div className="cat-desc">{i.descripcion}</div>}
                   </td>
                   <td>{MODALIDADES[i.modalidad] || i.modalidad}</td>
-                  <td className="cat-der cat-precio">{pesos(i.precio)}</td>
+                  <td className="cat-der cat-precio">
+                    {pesos(i.precio)}
+                    {i.lleva_iva && <div className="cat-desc">{pesos(i.precio * (1 + ivaPct / 100))} c/IVA</div>}
+                  </td>
                   <td className={i.local_id ? '' : 'cat-general'}>{i.local_nombre}</td>
                   <td className="cat-centro">{i.ajusta_ipc ? 'Sí' : 'No'}</td>
+                  <td className="cat-centro">{i.lleva_iva ? 'Sí' : 'No'}</td>
                   <td className="cat-acciones">
+                    {['Menú', 'Barra'].includes(i.categoria) && (
+                      <button className="cat-btn chico" onClick={() => setComposicionDe(i.id)} disabled={editando !== null}
+                        title="Platos o tragos que van a la hoja de ruta">
+                        Detalle HDR{i.composicion?.length ? ` (${i.composicion.reduce((n, b) => n + b.items.length, 0)})` : ''}
+                      </button>
+                    )}
                     <button className="cat-btn chico" onClick={() => abrirEdicion(i)} disabled={editando !== null}>Editar</button>
                     <button className="cat-btn chico" onClick={() => alternarActivo(i)} disabled={editando !== null}>
                       {i.activo ? 'Dar de baja' : 'Reactivar'}
@@ -241,6 +345,7 @@ function ListaPrecios({ locales }) {
         </table>
       </div>
       <p className="cat-ayuda">
+        Los precios se guardan sin IVA (podés escribirlos con IVA y se convierten). "IVA: No" para lo que no se factura.
         Cambiar un precio acá no toca los pre-checks ya armados: cada pre-check guarda el precio del momento en que se cargó.
         Los ítems dados de baja dejan de aparecer para los comerciales.
       </p>
@@ -446,6 +551,12 @@ function Parametros() {
               </span>
             </label>
           ))}
+          <label>Propina sugerida (se muestra cuando va en 0)
+            <span className="cat-pct">
+              <input className="cat-num" inputMode="decimal" value={cfg.propina_sugerida_porcentaje}
+                onChange={(e) => setCfg({ ...cfg, propina_sugerida_porcentaje: e.target.value.replace(/[^\d.]/g, '') })} />%
+            </span>
+          </label>
           <p className="cat-ayuda">Se calcula sobre el subtotal sin IVA y se muestra aparte. En 0 no aparece. Se toma al crear cada pre-check y el comercial la puede cambiar en ese evento.</p>
         </div>
       </div>
@@ -493,10 +604,12 @@ export default function Catalogo() {
     try { return localStorage.getItem('catalogo_pestana') || 'precios'; } catch { return 'precios'; }
   });
   const [locales, setLocales] = useState([]);
+  const [ivaPct, setIvaPct] = useState(21);
 
   useEffect(() => {
     localesApi.listar().then((r) => setLocales(r.data)).catch(() => setLocales([]));
-  }, []);
+    catalogoApi.config().then((r) => setIvaPct(r.data.iva_porcentaje || 21)).catch(() => {});
+  }, [pestana]);
 
   const elegir = (id) => {
     setPestana(id);
@@ -514,7 +627,7 @@ export default function Catalogo() {
           <button key={p.id} className={pestana === p.id ? 'activo' : ''} onClick={() => elegir(p.id)}>{p.label}</button>
         ))}
       </nav>
-      {pestana === 'precios' && <ListaPrecios locales={locales} />}
+      {pestana === 'precios' && <ListaPrecios locales={locales} ivaPct={ivaPct} />}
       {pestana === 'espacios' && <Espacios locales={locales} />}
       {pestana === 'parametros' && <Parametros />}
     </div>

@@ -454,3 +454,86 @@
     width: 100%;
   }
 }
+
+
+/* ---- Detalle para la hoja de ruta */
+.cat-mini {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--tinta-suave, #5c6359);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.cat-fila-form .cat-mini input {
+  width: auto;
+  min-width: 0;
+  height: auto;
+  margin: 0;
+}
+
+.cat-composicion {
+  background: #fbfbf8;
+  border: 1px solid var(--linea, #d8dad1);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.cat-comp-cab {
+  display: grid;
+  gap: 4px;
+}
+
+.cat-comp-cab .cat-ayuda {
+  margin: 0;
+}
+
+.cat-comp-bloque {
+  border-left: 3px solid var(--botella-suave, #e3ece6);
+  padding-left: 10px;
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.cat-comp-titulo,
+.cat-comp-item {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.cat-composicion input {
+  height: 32px;
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  background: var(--papel, #fff);
+}
+
+.cat-comp-titulo input {
+  font-weight: 600;
+}
+
+.cat-composicion .cat-comp-pax {
+  flex: none;
+  width: 90px;
+}
+
+.cat-comp-pie {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cat-espacio {
+  flex: 1;
+}

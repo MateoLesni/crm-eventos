@@ -1199,3 +1199,106 @@
 .pc-ipc-form .pc-btn {
   justify-self: start;
 }
+
+
+/* ---- v3: opciones por línea, marcas y nota */
+.pc-form-opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: flex-end;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--tinta-suave, #5c6359);
+}
+
+.pc-form-opciones > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pc-form-opciones select {
+  height: 32px;
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  background: var(--papel, #fff);
+}
+
+.pc-form-opciones .pc-check,
+.pc-check-form {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--tinta, #1e2722);
+  padding-bottom: 7px;
+}
+
+.pc-check small {
+  color: var(--tinta-tenue, #8d9288);
+}
+
+.pc-input-chico {
+  width: 64px;
+  height: 32px;
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  border-radius: 6px;
+  padding: 0 8px;
+  text-align: right;
+}
+
+.pc-marcas-linea {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.pc-marcas-linea .pc-marca {
+  margin-top: 0;
+}
+
+.pc-marca.neutra {
+  background: var(--lino-oscuro, #e1e3da);
+  color: var(--tinta-suave, #5c6359);
+}
+
+.pc-condicion {
+  font-size: 12px;
+  color: var(--tinta-suave, #5c6359);
+  font-style: italic;
+}
+
+.pc-dato-completo {
+  grid-column: 1 / -1;
+}
+
+.pc-dato textarea {
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  border-radius: 6px;
+  padding: 7px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.45;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pc-nota-cliente {
+  white-space: pre-wrap;
+  font-weight: 400 !important;
+}
+
+.pc-cond-item .pc-input-pesos {
+  height: 30px;
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  width: 130px;
+  text-align: right;
+}

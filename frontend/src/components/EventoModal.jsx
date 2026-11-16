@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import WhatsAppChat from './WhatsAppChat';
 import GmailChat from './GmailChat';
 import PreCheckTab from './PreCheckTab';
+import HojaRutaTab from './HojaRutaTab';
 import './Modal.css';
 
 const CANALES = {
@@ -449,6 +450,14 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                 {tienePrecheck && <span className="tab-badge">P</span>}
               </button>
             )}
+            {(eventoDetalle?.estado === 'APROBADO' || eventoDetalle?.estado === 'CONCLUIDO') && (
+              <button
+                className={`modal-tab ${activeTab === 'hoja_ruta' ? 'active' : ''}`}
+                onClick={() => setActiveTab('hoja_ruta')}
+              >
+                Hoja de ruta
+              </button>
+            )}
             <button
               className={`modal-tab ${activeTab === 'whatsapp' ? 'active' : ''}`}
               onClick={() => setActiveTab('whatsapp')}
@@ -789,6 +798,9 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
                 }}
               />
             )}
+
+            {/* Tab Hoja de ruta */}
+            {activeTab === 'hoja_ruta' && <HojaRutaTab eventoId={evento.id} />}
 
             {/* Tab WhatsApp */}
             {activeTab === 'whatsapp' && eventoDetalle?.cliente?.telefono && (

@@ -90,6 +90,8 @@ def _tabla(filas, anchos, totales=0):
 
 def _descripcion(item, e):
     texto = f'<b>{escape(item["descripcion"])}</b>'
+    if item.get('cobro_aparte'):
+        texto += ' <font size="7.5" color="#8c2443">(se abona aparte)</font>'
     if item.get('observaciones'):
         texto += f'<br/><font size="7.5" color="#5b625d">{escape(item["observaciones"]).replace(chr(10), "<br/>")}</font>'
     return Paragraph(texto, e['celda'])
@@ -123,6 +125,8 @@ def generar_pdf_precheck(evento, precheck, conceptos, adicionales, pagos, resume
     if evento.horario_inicio:
         horario = evento.horario_inicio.strftime('%H:%M') + (f' a {evento.horario_fin.strftime("%H:%M")}' if evento.horario_fin else '') + ' h'
     espacio = local + (f' · {precheck.sector.nombre}' if precheck and precheck.sector else '')
+    if precheck and precheck.espacio_detalle:
+        espacio += f' · {precheck.espacio_detalle}'
     datos = [
         ['Cliente', cliente, 'Fecha', fecha_larga(evento.fecha_evento)],
         ['Razón social', (precheck.razon_social if precheck and precheck.razon_social else '-'), 'Horario', horario],
@@ -142,17 +146,44 @@ def generar_pdf_precheck(evento, precheck, conceptos, adicionales, pagos, resume
     el.append(t)
 
     # ---- Lo contratado
+    tasa_iva = float(resumen.get('iva_porcentaje') or 0) / 100
+    condicion_txt = {'incluido': 'Incluido', 'bonificado': 'Bonificado', 'no_incluido': 'No incluido'}
+
+    def con_iva(item, unitario):
+        return unitario * (1 + tasa_iva) if (evento.facturada and item.get('lleva_iva', True)) else None
+
     if conceptos:
         el.append(Paragraph('Lo contratado', e['seccion']))
-        filas = [['Rubro', 'Detalle', 'Cant.', 'Precio unit.', 'Subtotal']]
+        filas = [['Rubro', 'Detalle', 'Cant.', 'Unit. s/IVA', 'Unit. c/IVA', 'Total']]
         for c in conceptos:
+            cond = c.get('condicion') or 'cobrado'
+            unit_iva = con_iva(c, c['precio_unitario'])
+            if cond == 'cobrado':
+                total_linea = pesos(c['subtotal'] * (1 + tasa_iva) if unit_iva is not None else c['subtotal'])
+            else:
+                total_linea = condicion_txt.get(cond, cond)
             filas.append([Paragraph(escape(_categoria(c)), e['celda']), _descripcion(c, e),
                           Paragraph(cantidad(c['cantidad']), e['celda_der']),
-                          Paragraph(pesos(c['precio_unitario']), e['celda_der']),
-                          Paragraph(pesos(c['subtotal']), e['celda_der'])])
-        filas.append(['', '', '', Paragraph('<b>Total</b>', e['celda_der']),
-                      Paragraph(f"<b>{pesos(resumen['total_conceptos'])}</b>", e['celda_der'])])
-        el.append(_tabla(filas, [3 * cm, ancho - 3 * cm - 1.4 * cm - 2.6 * cm - 2.8 * cm, 1.4 * cm, 2.6 * cm, 2.8 * cm], totales=1))
+                          Paragraph(pesos(c['precio_unitario']) if c['precio_unitario'] else '-', e['celda_der']),
+                          Paragraph(pesos(unit_iva) if unit_iva is not None and c['precio_unitario'] else '-', e['celda_der']),
+                          Paragraph(total_linea, e['celda_der'])])
+        if resumen.get('comision'):
+            filas.append([Paragraph('Comisión', e['celda']),
+                          Paragraph(escape(resumen.get('intermediario') or 'Intermediario'), e['celda']), '', '', '',
+                          Paragraph(pesos(-resumen['comision']), e['celda_der'])])
+        filas.append(['', '', '', '', Paragraph('<b>Total</b>', e['celda_der']),
+                      Paragraph(f"<b>{pesos(resumen['total_conceptos'] - (resumen.get('comision') or 0))}</b>", e['celda_der'])])
+        if evento.facturada:
+            detalle = ancho - 2.8 * cm - 1.2 * cm - 2.3 * cm - 2.3 * cm - 2.6 * cm
+            el.append(_tabla(filas, [2.8 * cm, detalle, 1.2 * cm, 2.3 * cm, 2.3 * cm, 2.6 * cm], totales=1))
+        else:
+            # sin factura no hay columna de IVA
+            filas = [[f[0], f[1], f[2], f[3], f[5]] for f in filas]
+            filas[0][3] = 'Precio unit.'
+            detalle = ancho - 2.8 * cm - 1.2 * cm - 2.6 * cm - 2.8 * cm
+            el.append(_tabla(filas, [2.8 * cm, detalle, 1.2 * cm, 2.6 * cm, 2.8 * cm], totales=1))
+        if evento.facturada:
+            el.append(Paragraph('Total de cada línea con IVA incluido. El total del evento discrimina el IVA abajo.', e['nota']))
 
     # ---- Adicionales
     if adicionales:
@@ -171,6 +202,8 @@ def generar_pdf_precheck(evento, precheck, conceptos, adicionales, pagos, resume
         filas.append([f"IVA {cantidad(resumen.get('iva_porcentaje', 21))}%", pesos(resumen['iva'])])
     if resumen.get('propina'):
         filas.append([f"Propina ({cantidad(resumen['propina_porcentaje'])}%)", pesos(resumen['propina'])])
+    elif resumen.get('propina_sugerida_porcentaje'):
+        filas.append([f"Propina: se sugiere un {cantidad(resumen['propina_sugerida_porcentaje'])}% de la propuesta inicial", '-'])
     filas.append(['TOTAL', pesos(resumen['total'])])
     t = Table(filas, colWidths=[ancho - 4 * cm, 4 * cm])
     t.setStyle(TableStyle([
@@ -211,6 +244,12 @@ def generar_pdf_precheck(evento, precheck, conceptos, adicionales, pagos, resume
         t = _tabla(filas, [3 * cm, ancho - 6 * cm, 3 * cm])
         t.setStyle(TableStyle([('ALIGN', (2, 1), (2, -1), 'RIGHT')]))
         el.append(KeepTogether([Paragraph('Pagos recibidos', e['seccion']), t]))
+
+    # ---- Nota del evento (la escribe el comercial para este cliente)
+    if precheck and (precheck.nota or '').strip():
+        el.append(Paragraph('Nota', e['seccion']))
+        for parrafo in precheck.nota.strip().split('\n'):
+            el.append(Paragraph(escape(parrafo.strip()), e['texto']) if parrafo.strip() else Spacer(1, 0.15 * cm))
 
     el.append(Spacer(1, 0.4 * cm))
     el.append(Paragraph('Los valores pueden actualizarse según las condiciones de pago detalladas en el anexo. '

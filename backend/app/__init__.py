@@ -79,6 +79,10 @@ def create_app():
     from app.routes.catalogo import catalogo_bp
     app.register_blueprint(catalogo_bp, url_prefix='/api/catalogo')
 
+    # Hoja de ruta de cada evento (detalle operativo para el local y cocina)
+    from app.routes.hoja_ruta import hoja_ruta_bp
+    app.register_blueprint(hoja_ruta_bp, url_prefix='/api/hoja-ruta')
+
     # Comprobantes de pago para otras apps (Control de Cajas), con clave propia
     from app.routes.comprobantes_externo import comprobantes_externo_bp
     app.register_blueprint(comprobantes_externo_bp, url_prefix='/api/externo')

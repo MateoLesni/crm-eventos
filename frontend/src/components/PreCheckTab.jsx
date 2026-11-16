@@ -51,6 +51,17 @@ function InputPesos({ value, onChange, permitirNegativo = false, placeholder = '
   );
 }
 
+const CONDICION_CORTA = { incluido: 'Incluido', bonificado: 'Bonificado', no_incluido: 'No incluido' };
+
+// Campo de texto que guarda al salir (onBlur) solo si cambió
+function CampoBlur({ valor, onGuardar, multilinea = false, ...props }) {
+  const [v, setV] = useState(valor ?? '');
+  const guardar = () => { if ((v ?? '') !== (valor ?? '')) onGuardar(v); };
+  return multilinea
+    ? <textarea value={v} onChange={(e) => setV(e.target.value)} onBlur={guardar} {...props} />
+    : <input value={v} onChange={(e) => setV(e.target.value)} onBlur={guardar} {...props} />;
+}
+
 const numero = (v) => (v === '' || v === '-' || v === null || v === undefined ? NaN : Number(v));
 
 // ==================== CABECERA ====================
@@ -94,6 +105,20 @@ function CondicionesPago({ data, puedeEditar, onGuardar }) {
           </span>
         ) : <strong>{resumen.sena_porcentaje}%</strong>}
         <small>{precheck.sena_porcentaje === null || precheck.sena_porcentaje === undefined ? 'general' : 'propia de este evento'}</small>
+      </div>
+      <div className="pc-cond-item">
+        <span>Seña en pesos</span>
+        {editable ? (
+          <CampoBlur key={String(precheck.sena_monto ?? '')} className="pc-input-pesos"
+            valor={precheck.sena_monto === null || precheck.sena_monto === undefined ? '' : String(precheck.sena_monto)}
+            placeholder="por %" inputMode="numeric"
+            onGuardar={(v) => {
+              const limpio = v.replace(/[^\d]/g, '');
+              guardar({ sena_monto: limpio === '' ? null : Number(limpio) },
+                limpio === '' ? 'Volver a calcular la seña por porcentaje' : `Seña fija de ${pesos(Number(limpio))}`, () => {});
+            }} />
+        ) : <strong>{resumen.sena_monto_fijo !== null && resumen.sena_monto_fijo !== undefined ? pesos(resumen.sena_monto_fijo) : 'por %'}</strong>}
+        <small>{precheck.sena_monto !== null && precheck.sena_monto !== undefined ? 'pisa el porcentaje' : 'vacío: se calcula por %'}</small>
       </div>
       <div className="pc-cond-item">
         <span>Saldo vence</span>
@@ -180,6 +205,31 @@ function DatosEvento({ data, puedeEditar, onGuardar, onToggleFacturada }) {
             onBlur={() => razon !== (precheck.razon_social || '') && onGuardar({ razon_social: razon })} />
         ) : <strong>{precheck.razon_social || '—'}</strong>}
       </div>
+      <div className="pc-dato pc-dato-ancho">
+        <span>Detalle del espacio</span>
+        {puedeEditar ? (
+          <CampoBlur key={precheck.espacio_detalle || ''} valor={precheck.espacio_detalle || ''} maxLength={255}
+            placeholder="Ej.: recepción galería/jardines - evento 1er piso" onGuardar={(v) => onGuardar({ espacio_detalle: v })} />
+        ) : <strong>{precheck.espacio_detalle || '—'}</strong>}
+      </div>
+      <div className="pc-dato pc-dato-ancho">
+        <span>Intermediario que comisiona</span>
+        {puedeEditar ? (
+          <CampoBlur key={precheck.intermediario || ''} valor={precheck.intermediario || ''} maxLength={120}
+            placeholder="Ej.: Brothers (vacío si no hay)" onGuardar={(v) => onGuardar({ intermediario: v })} />
+        ) : <strong>{precheck.intermediario || '—'}</strong>}
+      </div>
+      {(precheck.intermediario || precheck.comision_defecto !== null) && (
+        <div className="pc-dato">
+          <span>Comisión por defecto</span>
+          {puedeEditar ? (
+            <span className="pc-pct">
+              <CampoBlur key={String(precheck.comision_defecto ?? '')} valor={precheck.comision_defecto === null || precheck.comision_defecto === undefined ? '' : String(precheck.comision_defecto)}
+                inputMode="decimal" onGuardar={(v) => onGuardar({ comision_defecto: v === '' ? null : Number(v) })} />%
+            </span>
+          ) : <strong>{precheck.comision_defecto ?? 0}%</strong>}
+        </div>
+      )}
       <div className="pc-dato">
         <span>Propina</span>
         {puedeEditar ? (
@@ -191,10 +241,18 @@ function DatosEvento({ data, puedeEditar, onGuardar, onToggleFacturada }) {
       </div>
       <div className="pc-dato">
         <span>Factura</span>
-        <label className="toggle-switch" title={`Con factura suma IVA ${data.config.iva_porcentaje}%`}>
+        <label className="toggle-switch" title={`Con factura suma IVA ${data.config.iva_porcentaje}% a las líneas que llevan IVA`}>
           <input type="checkbox" checked={!!data.facturada} onChange={onToggleFacturada} disabled={!puedeEditar} />
           <span className="toggle-slider"></span>
         </label>
+      </div>
+      <div className="pc-dato pc-dato-completo">
+        <span>Nota para el cliente (sale en el PDF)</span>
+        {puedeEditar ? (
+          <CampoBlur multilinea rows={3} key={precheck.nota || ''} valor={precheck.nota || ''}
+            placeholder="Ej.: recorrido del evento, condiciones particulares, fecha límite para cambios…"
+            onGuardar={(v) => onGuardar({ nota: v })} />
+        ) : <strong className="pc-nota-cliente">{precheck.nota || '—'}</strong>}
       </div>
     </section>
   );
@@ -214,7 +272,16 @@ function FormItem({ data, editando, onCancelar, onGuardar, guardando }) {
     cantidad: editando.cantidad,
     precio_unitario: editando.precio_unitario,
     observaciones: editando.observaciones || '',
-  } : { categoria: 'Menú', categoria_otro: '', descripcion: '', cantidad: 1, precio_unitario: '', observaciones: '' });
+    lleva_iva: editando.lleva_iva !== false,
+    condicion: editando.condicion || 'cobrado',
+    cobro_aparte: !!editando.cobro_aparte,
+    comision_porcentaje: editando.comision_porcentaje ?? '',
+  } : {
+    categoria: 'Menú', categoria_otro: '', descripcion: '', cantidad: 1, precio_unitario: '', observaciones: '',
+    lleva_iva: true, condicion: 'cobrado', cobro_aparte: false,
+    comision_porcentaje: data.precheck.intermediario && data.precheck.comision_defecto !== null ? data.precheck.comision_defecto ?? '' : '',
+  });
+  const hayIntermediario = !!data.precheck.intermediario || (editando && editando.comision_porcentaje);
 
   const porCategoria = useMemo(() => {
     const g = {};
@@ -236,6 +303,7 @@ function FormItem({ data, editando, onCancelar, onGuardar, guardando }) {
         descripcion: it.nombre,
         cantidad: it.modalidad === 'por_persona' ? pax : 1,
         precio_unitario: it.precio,
+        lleva_iva: it.lleva_iva !== false,
       }));
     }
   };
@@ -247,7 +315,11 @@ function FormItem({ data, editando, onCancelar, onGuardar, guardando }) {
     if (Number.isNaN(precio)) return alert('Revisá el precio');
     if (!editando && modo === 'lista' && !itemId) return alert('Elegí un ítem de la lista');
     if (modo === 'mano' && !form.descripcion.trim()) return alert('Poné una descripción');
-    const datos = { cantidad: cant, precio_unitario: precio, observaciones: form.observaciones };
+    const datos = {
+      cantidad: cant, precio_unitario: precio, observaciones: form.observaciones,
+      lleva_iva: form.lleva_iva, condicion: form.condicion, cobro_aparte: form.cobro_aparte,
+    };
+    if (hayIntermediario) datos.comision_porcentaje = form.comision_porcentaje === '' ? null : Number(form.comision_porcentaje);
     if (!editando && modo === 'lista') datos.catalogo_item_id = Number(itemId);
     if (modo === 'mano' || editando) {
       datos.descripcion = form.descripcion;
@@ -259,7 +331,7 @@ function FormItem({ data, editando, onCancelar, onGuardar, guardando }) {
     onGuardar(datos);
   };
 
-  const subtotal = (numero(form.cantidad) || 0) * (numero(form.precio_unitario) || 0);
+  const subtotal = form.condicion === 'cobrado' ? (numero(form.cantidad) || 0) * (numero(form.precio_unitario) || 0) : 0;
 
   return (
     <div className="form-inline pc-form">
@@ -333,8 +405,37 @@ function FormItem({ data, editando, onCancelar, onGuardar, guardando }) {
             onChange={(e) => setForm({ ...form, observaciones: e.target.value })} />
         </div>
       </div>
+      {!esIpc && (
+        <div className="pc-form-opciones">
+          <label>
+            Condición
+            <select value={form.condicion} onChange={(e) => setForm({ ...form, condicion: e.target.value })}>
+              {Object.entries(data.condiciones || {}).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </label>
+          <label className="pc-check">
+            <input type="checkbox" checked={form.lleva_iva} onChange={(e) => setForm({ ...form, lleva_iva: e.target.checked })} />
+            Lleva IVA {!data.facturada && <small>(el evento no se factura)</small>}
+          </label>
+          <label className="pc-check" title="No entra en la seña ni en el saldo (ej. se cobra por club)">
+            <input type="checkbox" checked={form.cobro_aparte} onChange={(e) => setForm({ ...form, cobro_aparte: e.target.checked })} />
+            Se cobra aparte
+          </label>
+          {hayIntermediario && (
+            <label>
+              Comisión {data.precheck.intermediario || ''}
+              <span className="pc-pct">
+                <input value={form.comision_porcentaje} inputMode="decimal" className="pc-input-chico"
+                  onChange={(e) => setForm({ ...form, comision_porcentaje: e.target.value.replace(/[^\d.]/g, '') })} />%
+              </span>
+            </label>
+          )}
+        </div>
+      )}
       <div className="pc-form-pie">
-        <span className="pc-form-subtotal">Subtotal: <strong>{pesos(subtotal)}</strong></span>
+        <span className="pc-form-subtotal">
+          {form.condicion === 'cobrado' ? <>Subtotal: <strong>{pesos(subtotal)}</strong></> : <>No suma al total ({data.condiciones?.[form.condicion]})</>}
+        </span>
         {distintoDeLista && !esIpc && (
           <span className="pc-aviso-lista">Precio de lista {pesos(precioLista)}: queda marcado para que lo aprueben Pilar o el Tano</span>
         )}
@@ -365,9 +466,10 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
   const [verHistorial, setVerHistorial] = useState(false);
   const [ipc, setIpc] = useState(null);
 
-  const [adicionalForm, setAdicionalForm] = useState({ categoria: 'Vinos', categoria_otro: '', descripcion: '', monto: '', observaciones: '' });
+  const [adicionalForm, setAdicionalForm] = useState({ categoria: 'Vinos', categoria_otro: '', descripcion: '', monto: '', observaciones: '', lleva_iva: true });
   const [pagoForm, setPagoForm] = useState({
     metodo_pago: 'Transferencia', monto: '', fecha_deposito: new Date().toISOString().split('T')[0], fecha_acreditacion: '', notas: '',
+    destinatario: '', referencia: '',
   });
   const [comprobanteFile, setComprobanteFile] = useState(null);
   const [comprobantePreview, setComprobantePreview] = useState(null);
@@ -461,7 +563,7 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
 
   // ---------- Adicionales
   const resetAdicionalForm = () => {
-    setAdicionalForm({ categoria: 'Vinos', categoria_otro: '', descripcion: '', monto: '', observaciones: '' });
+    setAdicionalForm({ categoria: 'Vinos', categoria_otro: '', descripcion: '', monto: '', observaciones: '', lleva_iva: true });
     setEditingItem(null);
     setShowAdicionalForm(false);
   };
@@ -477,7 +579,7 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
   };
 
   const handleEditarAdicional = (a) => {
-    setAdicionalForm({ categoria: a.categoria, categoria_otro: a.categoria_otro || '', descripcion: a.descripcion, monto: a.monto, observaciones: a.observaciones || '' });
+    setAdicionalForm({ categoria: a.categoria, categoria_otro: a.categoria_otro || '', descripcion: a.descripcion, monto: a.monto, observaciones: a.observaciones || '', lleva_iva: a.lleva_iva !== false });
     setEditingItem(a);
     setShowAdicionalForm(true);
   };
@@ -513,7 +615,7 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
 
   // ---------- Pagos
   const resetPagoForm = () => {
-    setPagoForm({ metodo_pago: 'Transferencia', monto: '', fecha_deposito: new Date().toISOString().split('T')[0], fecha_acreditacion: '', notas: '' });
+    setPagoForm({ metodo_pago: 'Transferencia', monto: '', fecha_deposito: new Date().toISOString().split('T')[0], fecha_acreditacion: '', notas: '', destinatario: '', referencia: '' });
     setComprobanteFile(null);
     if (comprobantePreview) URL.revokeObjectURL(comprobantePreview);
     setComprobantePreview(null);
@@ -552,7 +654,7 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
   };
 
   const handleEditarPago = (pago) => {
-    setPagoForm({ metodo_pago: pago.metodo_pago, monto: pago.monto, fecha_deposito: pago.fecha_deposito || '', fecha_acreditacion: pago.fecha_acreditacion || '', notas: pago.notas || '' });
+    setPagoForm({ metodo_pago: pago.metodo_pago, monto: pago.monto, fecha_deposito: pago.fecha_deposito || '', fecha_acreditacion: pago.fecha_acreditacion || '', notas: pago.notas || '', destinatario: pago.destinatario || '', referencia: pago.referencia || '' });
     setEditingItem(pago);
     setShowPagoForm(true);
   };
@@ -705,15 +807,23 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
                       {c.es_ajuste_ipc && c.ipc_motivo && (
                         <span className="pc-marca" title={`INDEC: ${c.ipc_porcentaje_indec ?? 'sin dato nuevo'}%`}>% manual: {c.ipc_motivo}</span>
                       )}
-                      {c.fuera_de_lista && (
-                        <span className="pc-marca" title="Lo aprueban Pilar o el Tano">
-                          {c.precio_unitario < 0 ? 'Descuento' : c.precio_lista === null ? 'Cargado a mano' : `Fuera de lista (lista ${pesos(c.precio_lista)})`}
-                        </span>
-                      )}
+                      <div className="pc-marcas-linea">
+                        {c.fuera_de_lista && (
+                          <span className="pc-marca" title="Lo aprueban Pilar o el Tano">
+                            {c.condicion === 'bonificado' ? `Bonificado (valor ${pesos(c.valor)})`
+                              : c.precio_unitario < 0 ? 'Descuento' : c.precio_lista === null ? 'Cargado a mano' : `Fuera de lista (lista ${pesos(c.precio_lista)})`}
+                          </span>
+                        )}
+                        {!c.es_ajuste_ipc && !c.lleva_iva && <span className="pc-marca neutra">Sin IVA</span>}
+                        {c.cobro_aparte && <span className="pc-marca neutra">Se cobra aparte</span>}
+                        {c.comision_porcentaje > 0 && <span className="pc-marca neutra">Comisión {c.comision_porcentaje}%</span>}
+                      </div>
                     </td>
                     <td className="text-right">{Number(c.cantidad).toLocaleString('es-AR')}</td>
                     <td className="text-right pc-num">{pesos(c.precio_unitario)}</td>
-                    <td className="text-right pc-num">{pesos(c.subtotal)}</td>
+                    <td className="text-right pc-num">
+                      {c.condicion && c.condicion !== 'cobrado' ? <span className="pc-condicion">{CONDICION_CORTA[c.condicion]}</span> : pesos(c.subtotal)}
+                    </td>
                     {puede_editar && (
                       <td className="text-center acciones-cell">
                         {(!c.es_ajuste_ipc || permisos.es_admin) && (
@@ -733,6 +843,13 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
                   <td className="text-right pc-num"><strong>{pesos(resumen.total_conceptos)}</strong></td>
                   {puede_editar && <td></td>}
                 </tr>
+                {resumen.comision > 0 && (
+                  <tr>
+                    <td colSpan={4} className="text-right">Comisión {resumen.intermediario || 'intermediario'}</td>
+                    <td className="text-right pc-num">-{pesos(resumen.comision)}</td>
+                    {puede_editar && <td></td>}
+                  </tr>
+                )}
               </tfoot>
             </table>
           </div>
@@ -772,6 +889,7 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
                     <td>
                       <div className="pc-desc">{a.descripcion}</div>
                       {a.observaciones && <div className="pc-obs">{a.observaciones}</div>}
+                      {a.lleva_iva === false && <div className="pc-marcas-linea"><span className="pc-marca neutra">Sin IVA</span></div>}
                     </td>
                     <td className="text-right pc-num">{pesos(a.monto)}</td>
                     {puede_editar && (
@@ -824,6 +942,10 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
                 <label>Observaciones</label>
                 <input type="text" value={adicionalForm.observaciones} onChange={(e) => setAdicionalForm({ ...adicionalForm, observaciones: e.target.value })} />
               </div>
+              <label className="pc-check pc-check-form">
+                <input type="checkbox" checked={adicionalForm.lleva_iva} onChange={(e) => setAdicionalForm({ ...adicionalForm, lleva_iva: e.target.checked })} />
+                Lleva IVA
+              </label>
             </div>
             <div className="form-actions">
               <button className="btn-guardar" onClick={handleGuardarAdicional} disabled={guardando}>{guardando ? 'Guardando…' : (editingItem ? 'Actualizar' : 'Agregar')}</button>
@@ -838,6 +960,9 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
         <div className="totales-row"><span>Subtotal</span><span>{pesos(resumen.subtotal)}</span></div>
         {data.facturada && <div className="totales-row iva"><span>IVA {resumen.iva_porcentaje}%</span><span>{pesos(resumen.iva)}</span></div>}
         {resumen.propina > 0 && <div className="totales-row iva"><span>Propina ({resumen.propina_porcentaje}%)</span><span>{pesos(resumen.propina)}</span></div>}
+        {!(resumen.propina > 0) && resumen.propina_sugerida_porcentaje > 0 && (
+          <div className="totales-row iva"><span>Propina: se sugiere un {resumen.propina_sugerida_porcentaje}% de la propuesta inicial</span><span>—</span></div>
+        )}
         <div className="totales-row total"><span>TOTAL</span><span>{pesos(resumen.total)}</span></div>
         {precheck.estado === 'CERRADO' && precheck.monto_final !== null && (
           <div className="totales-row iva"><span>Total final al cierre</span><span>{pesos(precheck.monto_final)}</span></div>
@@ -995,7 +1120,11 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
                         </label>
                       ) : <span className="sin-comprobante">-</span>}
                     </td>
-                    <td className="notas-cell">{p.notas || '-'}</td>
+                    <td className="notas-cell">
+                      {p.destinatario && <div className="pc-obs">Pagado a: {p.destinatario}</div>}
+                      {p.referencia && <div className="pc-obs">Ref.: {p.referencia}</div>}
+                      {p.notas || (!p.destinatario && !p.referencia ? '-' : '')}
+                    </td>
                     {puede_editar_pagos && (
                       <td className="text-center acciones-cell">
                         {p.estado === 'REVISION' ? (
@@ -1044,6 +1173,18 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
               <div className="form-field" style={{ flex: 1 }}>
                 <label>Notas</label>
                 <input type="text" placeholder="Opcional" value={pagoForm.notas} onChange={(e) => setPagoForm({ ...pagoForm, notas: e.target.value })} />
+              </div>
+            </div>
+            <div className="form-row form-row-labels">
+              <div className="form-field" style={{ flex: 1 }}>
+                <label>Pagado a</label>
+                <input type="text" placeholder={`Ej.: ${data.evento.local || 'el local'}, un tercero…`} value={pagoForm.destinatario}
+                  onChange={(e) => setPagoForm({ ...pagoForm, destinatario: e.target.value })} />
+              </div>
+              <div className="form-field" style={{ flex: 1 }}>
+                <label>Referencia</label>
+                <input type="text" placeholder="Nro. de operación, factura…" value={pagoForm.referencia}
+                  onChange={(e) => setPagoForm({ ...pagoForm, referencia: e.target.value })} />
               </div>
             </div>
             <div className="form-row" style={{ marginTop: '8px', alignItems: 'center', gap: '12px' }}>

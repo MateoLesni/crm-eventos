@@ -15,7 +15,7 @@ from app import db
 from app.models import Evento
 from app.models_precheck import (
     CATEGORIA_AJUSTE_IPC, CATEGORIAS_LEGACY, CATEGORIAS_PRECHECK,
-    METODOS_PAGO, MODALIDADES, CatalogoItem, LocalSector, Precheck, PrecheckAdicional,
+    CONDICIONES, METODOS_PAGO, MODALIDADES, CatalogoItem, LocalSector, Precheck, PrecheckAdicional,
     PrecheckConcepto, PrecheckHistorial, PrecheckPago, leer_config,
 )
 from app.routes.auth import token_required
@@ -170,7 +170,8 @@ def obtener_precheck(current_user, evento_id):
     cabecera = evento.precheck.to_dict() if evento.precheck else {
         'sector_id': None, 'sector': None, 'motivo': None, 'razon_social': None,
         'propina_porcentaje': float(config.get(f'propina_local_{evento.local_id}') or 0),
-        'sena_porcentaje': None, 'dias_saldo_antes_evento': None,
+        'sena_porcentaje': None, 'sena_monto': None, 'dias_saldo_antes_evento': None,
+        'espacio_detalle': None, 'nota': None, 'intermediario': None, 'comision_defecto': None,
         'ipc_activo': str(config.get('ipc_activo_por_defecto') or '0') in ('1', 'true'),
         'estado': 'BORRADOR', 'modificado_post_aprobacion': False,
     }
@@ -203,6 +204,7 @@ def obtener_precheck(current_user, evento_id):
             'sena_porcentaje': float(config.get('sena_porcentaje') or 50),
             'dias_saldo_antes_evento': int(float(config.get('dias_saldo_antes_evento') or 7)),
             'iva_porcentaje': float(config.get('iva_porcentaje') or 21),
+            'propina_sugerida_porcentaje': float(config.get('propina_sugerida_porcentaje') or 0),
             'tiene_condiciones': bool((config.get('condiciones') or '').strip()),
         },
         'permisos': permisos,
@@ -211,6 +213,7 @@ def obtener_precheck(current_user, evento_id):
         'puede_editar_pagos': permisos['puede_editar_pagos'],
         'categorias': CATEGORIAS_PRECHECK,
         'modalidades': MODALIDADES,
+        'condiciones': CONDICIONES,
         'metodos_pago': METODOS_PAGO,
     }), 200
 
@@ -238,12 +241,26 @@ def actualizar_cabecera(current_user, evento_id):
             cambios.append(f"Sector: {pc.sector.nombre if pc.sector else '—'} → {sector.nombre if sector else '—'}")
             pc.sector_id = sector.id if sector else None
             pc.sector = sector
-    for campo, etiqueta, largo in (('motivo', 'Motivo', 200), ('razon_social', 'Razón social', 200)):
+    for campo, etiqueta, largo in (('motivo', 'Motivo', 200), ('razon_social', 'Razón social', 200),
+                                   ('espacio_detalle', 'Detalle del espacio', 255), ('intermediario', 'Intermediario', 120),
+                                   ('nota', 'Nota para el cliente', 5000)):
         if campo in data:
             nuevo = (data[campo] or '').strip()[:largo] or None
             if getattr(pc, campo) != nuevo:
                 cambios.append(f"{etiqueta}: {getattr(pc, campo) or '—'} → {nuevo or '—'}")
                 setattr(pc, campo, nuevo)
+    if 'comision_defecto' in data:
+        v = data['comision_defecto']
+        try:
+            nuevo = None if v in (None, '') else _num(v, 'Comisión', permitir_negativo=False)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        if nuevo is not None and nuevo > 100:
+            return jsonify({'error': 'La comisión no puede superar el 100%'}), 400
+        actual = None if pc.comision_defecto is None else Decimal(str(pc.comision_defecto))
+        if actual != nuevo:
+            cambios.append(f"Comisión por defecto: {float(actual or 0):g}% → {float(nuevo or 0):g}%")
+            pc.comision_defecto = nuevo
     if 'propina_porcentaje' in data:
         try:
             pct = _num(data['propina_porcentaje'] or 0, 'Propina', permitir_negativo=False)
@@ -258,7 +275,7 @@ def actualizar_cabecera(current_user, evento_id):
     # ---- Condiciones de pago e IPC de este evento: solo administración, con motivo
     sensibles = []
     motivo_cambio = (data.get('motivo_cambio') or '').strip()
-    if any(k in data for k in ('sena_porcentaje', 'dias_saldo_antes_evento', 'ipc_activo')):
+    if any(k in data for k in ('sena_porcentaje', 'sena_monto', 'dias_saldo_antes_evento', 'ipc_activo')):
         if not _es_admin(current_user):
             db.session.rollback()
             return jsonify({'error': 'La seña, el vencimiento del saldo y el IPC los cambia administración'}), 403
@@ -276,6 +293,15 @@ def actualizar_cabecera(current_user, evento_id):
                     despues = f'{float(nuevo):g}%' if nuevo is not None else general
                     sensibles.append(f'Seña: {antes} → {despues}')
                     pc.sena_porcentaje = nuevo
+            if 'sena_monto' in data:
+                v = data['sena_monto']
+                nuevo = None if v in (None, '') else _num(v, 'Seña', permitir_negativo=False)
+                actual = None if pc.sena_monto is None else Decimal(str(pc.sena_monto))
+                if actual != nuevo:
+                    antes = _pesos(actual) if actual is not None else 'por porcentaje'
+                    despues = _pesos(nuevo) if nuevo is not None else 'por porcentaje'
+                    sensibles.append(f'Seña en pesos: {antes} → {despues}')
+                    pc.sena_monto = nuevo
             if 'dias_saldo_antes_evento' in data:
                 v = data['dias_saldo_antes_evento']
                 nuevo = None if v in (None, '') else int(_num(v, 'Días', permitir_negativo=False))
@@ -400,6 +426,7 @@ def _aplicar_datos_concepto(concepto, data, evento):
         concepto.precio_lista = item.precio
         concepto.modalidad = item.modalidad
         concepto.ajusta_ipc = item.ajusta_ipc
+        data.setdefault('lleva_iva', item.lleva_iva)
         data.setdefault('categoria', item.categoria)
         data.setdefault('descripcion', item.nombre)
         data.setdefault('precio_unitario', float(item.precio))
@@ -449,6 +476,34 @@ def _aplicar_datos_concepto(concepto, data, evento):
         concepto.observaciones = obs
     if 'ajusta_ipc' in data:
         concepto.ajusta_ipc = bool(data['ajusta_ipc'])
+    if 'lleva_iva' in data:
+        nuevo = bool(data['lleva_iva'])
+        if concepto.id and bool(concepto.lleva_iva) != nuevo:
+            cambios.append('con IVA' if nuevo else 'sin IVA')
+        concepto.lleva_iva = nuevo
+    if 'condicion' in data:
+        cond = data['condicion'] or 'cobrado'
+        if cond not in CONDICIONES:
+            raise ValueError('Condición inválida')
+        if concepto.id and (concepto.condicion or 'cobrado') != cond:
+            cambios.append(f"{CONDICIONES.get(concepto.condicion or 'cobrado')} → {CONDICIONES[cond]}")
+        concepto.condicion = cond
+    if 'cobro_aparte' in data:
+        nuevo = bool(data['cobro_aparte'])
+        if concepto.id and bool(concepto.cobro_aparte) != nuevo:
+            cambios.append('se cobra aparte' if nuevo else 'vuelve al plan de pagos')
+        concepto.cobro_aparte = nuevo
+    if 'comision_porcentaje' in data:
+        v = data['comision_porcentaje']
+        nuevo = None if v in (None, '') else _num(v, 'Comisión', permitir_negativo=False)
+        if nuevo is not None and nuevo > 100:
+            raise ValueError('La comisión no puede superar el 100%')
+        actual = None if concepto.comision_porcentaje is None else Decimal(str(concepto.comision_porcentaje))
+        if concepto.id and actual != nuevo:
+            cambios.append(f"comisión {float(actual or 0):g}% → {float(nuevo or 0):g}%")
+        concepto.comision_porcentaje = nuevo
+    if concepto.condicion is None:
+        concepto.condicion = 'cobrado'
     if concepto.cantidad is None:
         concepto.cantidad = Decimal('1')
     if concepto.categoria is None or concepto.descripcion is None or concepto.precio_unitario is None:
@@ -469,6 +524,9 @@ def agregar_concepto(current_user, evento_id):
     concepto = PrecheckConcepto(evento_id=evento_id)
     if not data.get('catalogo_item_id') and not data.get('exclusividad_sector'):
         concepto.precio_lista = None  # cargado a mano: queda como fuera de lista
+    pc = evento.precheck
+    if pc and pc.intermediario and pc.comision_defecto is not None and 'comision_porcentaje' not in data:
+        data['comision_porcentaje'] = float(pc.comision_defecto)
     try:
         _aplicar_datos_concepto(concepto, data, evento)
     except ValueError as e:
@@ -553,6 +611,11 @@ def _aplicar_datos_adicional(adicional, data):
         if adicional.id and adicional.observaciones != obs:
             cambios.append('observaciones')
         adicional.observaciones = obs
+    if 'lleva_iva' in data:
+        nuevo = bool(data['lleva_iva'])
+        if adicional.id and bool(adicional.lleva_iva) != nuevo:
+            cambios.append('con IVA' if nuevo else 'sin IVA')
+        adicional.lleva_iva = nuevo
     if adicional.categoria is None or adicional.descripcion is None or adicional.monto is None:
         raise ValueError('Faltan datos: categoría, descripción y monto')
     return cambios
@@ -733,7 +796,9 @@ def agregar_pago(current_user, evento_id):
     pago = PrecheckPago(
         evento_id=evento_id, metodo_pago=data['metodo_pago'], monto=monto,
         fecha_pago=fecha_deposito, fecha_deposito=fecha_deposito,
-        fecha_acreditacion=fecha_acreditacion, notas=data.get('notas'))
+        fecha_acreditacion=fecha_acreditacion, notas=data.get('notas'),
+        destinatario=(data.get('destinatario') or '').strip()[:120] or None,
+        referencia=(data.get('referencia') or '').strip()[:120] or None)
     db.session.add(pago)
     obtener_o_crear_precheck(evento)
     registrar(evento, current_user, 'Cargó pago', f"{pago.metodo_pago} {_pesos(monto)} del {fecha_deposito:%d/%m/%Y}")
@@ -771,6 +836,9 @@ def actualizar_pago(current_user, evento_id, pago_id):
         return jsonify({'error': str(e)}), 400
     if 'notas' in data:
         pago.notas = data['notas']
+    for campo in ('destinatario', 'referencia'):
+        if campo in data:
+            setattr(pago, campo, (data[campo] or '').strip()[:120] or None)
     if cambios:
         registrar(evento, current_user, 'Modificó pago', ', '.join(cambios))
     db.session.commit()

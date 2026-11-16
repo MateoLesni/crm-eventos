@@ -139,6 +139,20 @@ export const precheckApi = {
   aplicarIpc: (eventoId, data) => api.post(`/precheck/${eventoId}/ipc`, data || {}),
 };
 
+// Hoja de ruta del evento (detalle operativo para el local y cocina)
+export const hojaRutaApi = {
+  obtener: (eventoId) => api.get(`/hoja-ruta/${eventoId}`),
+  guardar: (eventoId, contenido) => api.put(`/hoja-ruta/${eventoId}`, { contenido }),
+  enviar: (eventoId, nota) => api.post(`/hoja-ruta/${eventoId}/enviar`, { nota }),
+  subirPlano: (eventoId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/hoja-ruta/${eventoId}/planos`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  eliminarPlano: (eventoId, archivoId) => api.delete(`/hoja-ruta/${eventoId}/planos/${archivoId}`),
+  descargarPdf: (eventoId) => api.get(`/hoja-ruta/${eventoId}/pdf`, { responseType: 'blob' }),
+};
+
 // Catálogo del pre-check: lista de precios, sectores y parámetros (escriben solo admin)
 export const catalogoApi = {
   items: (params) => api.get('/catalogo/items', { params }),

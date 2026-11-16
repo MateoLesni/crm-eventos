@@ -3,7 +3,6 @@ Modelos SQLAlchemy para sistema Pre-Check
 Tablas: precheck_conceptos, precheck_adicionales, precheck_pagos
 """
 from app import db
-from datetime import datetime
 from decimal import Decimal
 from app.utils.timezone import ahora_argentina
 
@@ -36,6 +35,16 @@ MODALIDADES = {
     'por_persona': 'Por persona',
     'por_unidad': 'Por unidad',
     'fijo': 'Precio fijo',
+    'paquete': 'Paquete (precio cerrado)',
+}
+
+# Qué significa cada línea del pre-check. Solo "cobrado" suma al total;
+# las demás se listan para que quede claro qué incluye y qué no.
+CONDICIONES = {
+    'cobrado': 'Cobrado',
+    'incluido': 'Incluido en otro ítem',
+    'bonificado': 'Bonificado',
+    'no_incluido': 'No incluido',
 }
 
 # Estados del pre-check
@@ -77,6 +86,10 @@ class PrecheckConcepto(db.Model):
     ipc_porcentaje_aplicado = db.Column(db.Numeric(8, 4), nullable=True)  # lo que se aplicó
     ipc_motivo = db.Column(db.Text, nullable=True)                         # por qué se cambió el %
     ipc_aplicado_por_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
+    lleva_iva = db.Column(db.Boolean, nullable=False, default=True)         # si el evento se factura, suma IVA
+    condicion = db.Column(db.String(20), nullable=False, default='cobrado')  # ver CONDICIONES
+    cobro_aparte = db.Column(db.Boolean, nullable=False, default=False)     # no entra en seña/saldo (ej. por club)
+    comision_porcentaje = db.Column(db.Numeric(5, 2), nullable=True)        # comisión del intermediario sobre esta línea
     created_at = db.Column(db.DateTime, default=ahora_argentina)
     updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
@@ -84,18 +97,30 @@ class PrecheckConcepto(db.Model):
     evento = db.relationship('Evento', backref=db.backref('precheck_conceptos', lazy='dynamic', cascade='all, delete-orphan'))
 
     @property
-    def subtotal(self):
-        """Calcula el subtotal (cantidad * precio_unitario)"""
+    def valor(self):
+        """Cantidad x precio, aunque la línea no se cobre (sirve para mostrar lo bonificado)."""
         return Decimal(str(self.cantidad)) * Decimal(str(self.precio_unitario))
+
+    @property
+    def subtotal(self):
+        """Lo que suma al total: solo las líneas cobradas."""
+        if (self.condicion or 'cobrado') != 'cobrado':
+            return Decimal('0')
+        return self.valor
 
     @property
     def fuera_de_lista(self):
         """
-        Precio distinto al del catálogo, ítem cargado a mano o descuento.
+        Precio distinto al del catálogo, ítem cargado a mano, descuento o bonificación.
         Son los que tienen que aprobar Pilar o el Tano.
         """
         if self.es_ajuste_ipc:
             return False
+        condicion = self.condicion or 'cobrado'
+        if condicion in ('incluido', 'no_incluido'):
+            return False
+        if condicion == 'bonificado':
+            return True
         if Decimal(str(self.precio_unitario)) < 0:
             return True
         if self.precio_lista is None:
@@ -112,6 +137,11 @@ class PrecheckConcepto(db.Model):
             'cantidad': float(self.cantidad) if self.cantidad else 0,
             'precio_unitario': float(self.precio_unitario) if self.precio_unitario else 0,
             'subtotal': float(self.subtotal),
+            'valor': float(self.valor),
+            'lleva_iva': bool(self.lleva_iva),
+            'condicion': self.condicion or 'cobrado',
+            'cobro_aparte': bool(self.cobro_aparte),
+            'comision_porcentaje': float(self.comision_porcentaje) if self.comision_porcentaje is not None else None,
             'observaciones': self.observaciones,
             'catalogo_item_id': self.catalogo_item_id,
             'modalidad': self.modalidad,
@@ -142,6 +172,7 @@ class PrecheckAdicional(db.Model):
     descripcion = db.Column(db.String(255), nullable=False)
     monto = db.Column(db.Numeric(12, 2), nullable=False)
     observaciones = db.Column(db.Text, nullable=True)
+    lleva_iva = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=ahora_argentina)
     updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
@@ -157,6 +188,7 @@ class PrecheckAdicional(db.Model):
             'descripcion': self.descripcion,
             'monto': float(self.monto) if self.monto else 0,
             'observaciones': self.observaciones,
+            'lleva_iva': bool(self.lleva_iva),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -179,6 +211,8 @@ class PrecheckPago(db.Model):
     comprobante_url = db.Column(db.String(500), nullable=True)  # URL en GCP bucket
     comprobante_nombre = db.Column(db.String(255), nullable=True)  # Nombre original del archivo
     notas = db.Column(db.Text, nullable=True)
+    destinatario = db.Column(db.String(120), nullable=True)   # a quién se pagó: el local o un tercero
+    referencia = db.Column(db.String(120), nullable=True)     # nro. de operación, factura, etc.
     created_at = db.Column(db.DateTime, default=ahora_argentina)
     updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
@@ -207,6 +241,8 @@ class PrecheckPago(db.Model):
             'comprobante_url': self.comprobante_url,
             'comprobante_nombre': self.comprobante_nombre,
             'notas': self.notas,
+            'destinatario': self.destinatario,
+            'referencia': self.referencia,
             'estado': self.estado,
             'numero_oppen': self.numero_oppen,
             'validado_por_id': self.validado_por_id,
@@ -275,12 +311,24 @@ class CatalogoItem(db.Model):
     modalidad = db.Column(db.String(20), nullable=False, default='por_persona')
     precio = db.Column(db.Numeric(14, 2), nullable=False)
     ajusta_ipc = db.Column(db.Boolean, nullable=False, default=True)
+    lleva_iva = db.Column(db.Boolean, nullable=False, default=True)
+    # Detalle para la hoja de ruta: [{"titulo": "Bocados", "items": [{"nombre": "...", "por_pax": "1"}]}]
+    composicion = db.Column(db.Text, nullable=True)
     activo = db.Column(db.Boolean, nullable=False, default=True)
     orden = db.Column(db.Integer, nullable=False, default=0)
     updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
     updated_by_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
 
     local = db.relationship('Local')
+
+    @property
+    def composicion_lista(self):
+        import json
+        try:
+            datos = json.loads(self.composicion) if self.composicion else []
+            return datos if isinstance(datos, list) else []
+        except (ValueError, TypeError):
+            return []
     updated_by = db.relationship('Usuario')
 
     def to_dict(self):
@@ -294,6 +342,8 @@ class CatalogoItem(db.Model):
             'modalidad': self.modalidad,
             'precio': float(self.precio) if self.precio is not None else 0,
             'ajusta_ipc': bool(self.ajusta_ipc),
+            'lleva_iva': bool(self.lleva_iva),
+            'composicion': self.composicion_lista,
             'activo': bool(self.activo),
             'orden': self.orden,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
@@ -317,6 +367,7 @@ CONFIG_DEFAULTS = {
     'sena_porcentaje': '50',
     'dias_saldo_antes_evento': '7',
     'iva_porcentaje': '21',
+    'propina_sugerida_porcentaje': '10',   # se muestra como sugerencia cuando la propina va en 0
     'ipc_activo_por_defecto': '0',   # el ajuste por IPC se activa a mano en cada evento
     'condiciones': '',
 }
@@ -340,6 +391,11 @@ class Precheck(db.Model):
     razon_social = db.Column(db.String(200), nullable=True)   # empresa/agencia que factura, si aplica
     propina_porcentaje = db.Column(db.Numeric(5, 2), nullable=False, default=0)
     sena_porcentaje = db.Column(db.Numeric(5, 2), nullable=True)          # NULL = el general del catálogo
+    sena_monto = db.Column(db.Numeric(14, 2), nullable=True)              # seña fijada en pesos (pisa el %)
+    espacio_detalle = db.Column(db.String(255), nullable=True)            # ej. "Recepción galería - evento 1er piso"
+    nota = db.Column(db.Text, nullable=True)                              # nota para el cliente (sale en el PDF)
+    intermediario = db.Column(db.String(120), nullable=True)              # agencia que comisiona (ej. Brothers)
+    comision_defecto = db.Column(db.Numeric(5, 2), nullable=True)         # % que se propone en cada línea nueva
     dias_saldo_antes_evento = db.Column(db.Integer, nullable=True)        # NULL = el general del catálogo
     ipc_activo = db.Column(db.Boolean, nullable=False, default=False)
     estado = db.Column(db.String(20), nullable=False, default='BORRADOR')
@@ -371,6 +427,11 @@ class Precheck(db.Model):
             'razon_social': self.razon_social,
             'propina_porcentaje': float(self.propina_porcentaje or 0),
             'sena_porcentaje': float(self.sena_porcentaje) if self.sena_porcentaje is not None else None,
+            'sena_monto': float(self.sena_monto) if self.sena_monto is not None else None,
+            'espacio_detalle': self.espacio_detalle,
+            'nota': self.nota,
+            'intermediario': self.intermediario,
+            'comision_defecto': float(self.comision_defecto) if self.comision_defecto is not None else None,
             'dias_saldo_antes_evento': self.dias_saldo_antes_evento,
             'ipc_activo': bool(self.ipc_activo),
             'estado': self.estado,
@@ -426,4 +487,49 @@ class IpcIndice(db.Model):
         return {
             'periodo': self.periodo.strftime('%Y-%m'),
             'valor': float(self.valor),
+        }
+
+
+class HojaRuta(db.Model):
+    """
+    Hoja de ruta del evento: el detalle operativo (menú, barra, servicios, técnica,
+    armado, timing). El contenido es un JSON con secciones; ver utils/hoja_ruta.py.
+    """
+    __tablename__ = 'hojas_ruta'
+
+    evento_id = db.Column(db.Integer, db.ForeignKey('eventos.id', ondelete='CASCADE'), primary_key=True)
+    contenido = db.Column(db.Text, nullable=False, default='{}')
+    version = db.Column(db.Integer, nullable=False, default=0)            # última versión enviada
+    cambios_sin_enviar = db.Column(db.Boolean, nullable=False, default=True)
+    updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
+
+    evento = db.relationship('Evento', backref=db.backref('hoja_ruta', uselist=False, cascade='all, delete-orphan'))
+    updated_by = db.relationship('Usuario')
+
+
+class HojaRutaVersion(db.Model):
+    """Copia de la hoja de ruta cada vez que se manda al local (quién, cuándo, qué cambió)."""
+    __tablename__ = 'hoja_ruta_versiones'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    evento_id = db.Column(db.Integer, db.ForeignKey('eventos.id', ondelete='CASCADE'), nullable=False, index=True)
+    version = db.Column(db.Integer, nullable=False)
+    contenido = db.Column(db.Text, nullable=False)
+    cambios = db.Column(db.Text, nullable=True)      # resumen de qué cambió respecto de la anterior
+    nota = db.Column(db.Text, nullable=True)
+    enviada_por_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
+
+    enviada_por = db.relationship('Usuario')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'version': self.version,
+            'cambios': self.cambios,
+            'nota': self.nota,
+            'enviada_por': self.enviada_por.nombre if self.enviada_por else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
         }
