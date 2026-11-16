@@ -75,6 +75,10 @@ def create_app():
     from app.routes.ipc import ipc_bp
     app.register_blueprint(ipc_bp, url_prefix='/api/ipc')
 
+    # Catálogo del pre-check (lista de precios, sectores, parámetros)
+    from app.routes.catalogo import catalogo_bp
+    app.register_blueprint(catalogo_bp, url_prefix='/api/catalogo')
+
     # Comprobantes de pago para otras apps (Control de Cajas), con clave propia
     from app.routes.comprobantes_externo import comprobantes_externo_bp
     app.register_blueprint(comprobantes_externo_bp, url_prefix='/api/externo')

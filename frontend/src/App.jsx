@@ -6,6 +6,7 @@ import Calendario from './pages/Calendario';
 import Reportes from './pages/Reportes';
 import ReportesFinancieros from './pages/ReportesFinancieros';
 import Metricas from './pages/Metricas';
+import Catalogo from './pages/Catalogo';
 import Eliminados from './pages/Eliminados';
 import Tesoreria from './pages/Tesoreria';
 import Login from './pages/Login';
@@ -110,6 +111,16 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/catalogo"
+        element={
+          <AdminRoute>
+            <Layout>
+              <Catalogo />
+            </Layout>
+          </AdminRoute>
+        }
+      />
+      <Route
         path="/reportes-financieros"
         element={
           <AdminRoute>
@@ -161,6 +172,7 @@ function Layout({ children }) {
     if (location.pathname === '/reportes') return 'Reportes Operativos';
     if (location.pathname === '/reportes-financieros') return 'Reportes Financieros';
     if (location.pathname === '/metricas') return 'Métricas';
+    if (location.pathname === '/catalogo') return 'Catálogo del pre-check';
     if (location.pathname === '/eliminados') return 'Papelera';
     if (location.pathname === '/tesoreria') return 'Tesorería';
     return 'Eventos';

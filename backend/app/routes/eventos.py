@@ -546,6 +546,9 @@ def actualizar_evento(id):
             if evento.precheck_adicionales.count() > 0:
                 for adicional in evento.precheck_adicionales.all():
                     db.session.delete(adicional)
+            if getattr(evento, 'precheck', None):
+                evento.precheck.estado = 'BORRADOR'
+                evento.precheck.modificado_post_aprobacion = False
 
             # Limpiar motivo_rechazo si se revierte desde RECHAZADO
             if estado_anterior == 'RECHAZADO':

@@ -783,9 +783,9 @@ export default function EventoModal({ evento, onClose, onUpdated, onRefresh, tab
               <PreCheckTab
                 eventoId={evento.id}
                 estado={eventoDetalle?.estado}
-                onPrecheckChange={(tiene) => {
+                onPrecheckChange={(tiene, cambio) => {
                   setTienePrecheck(tiene);
-                  if (onRefresh) onRefresh(); // Refrescar la lista de eventos sin cerrar modal
+                  if (cambio && onRefresh) onRefresh(); // Refrescar el tablero solo si pasó a tener (o dejó de tener) pre-check
                 }}
               />
             )}

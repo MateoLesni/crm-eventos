@@ -10,12 +10,36 @@ from app.utils.timezone import ahora_argentina
 
 # Categorías disponibles para conceptos y adicionales
 CATEGORIAS_PRECHECK = [
-    'Gastronomía',
-    'Venue',
+    'Menú',
+    'Barra',
+    'Vinos',
+    'Espumante',
+    'Exclusividad',
+    'DJ / Setup',
     'Técnica',
-    'Servicios',
-    'Otros'
+    'Ambientación',
+    'Valet / Estacionamiento',
+    'Día de armado',
+    'Café',
+    'Descuento',
+    'Otros',
 ]
+
+# Categorías del esquema anterior: se siguen aceptando para no romper lo ya cargado
+CATEGORIAS_LEGACY = ['Gastronomía', 'Venue', 'Servicios']
+
+# Línea que genera el sistema al aplicar el ajuste por IPC (no se elige a mano)
+CATEGORIA_AJUSTE_IPC = 'Ajuste IPC'
+
+# Cómo se calcula la cantidad de un ítem del catálogo
+MODALIDADES = {
+    'por_persona': 'Por persona',
+    'por_unidad': 'Por unidad',
+    'fijo': 'Precio fijo',
+}
+
+# Estados del pre-check
+ESTADOS_PRECHECK = ['BORRADOR', 'EN_REVISION', 'APROBADO', 'CERRADO']
 
 # Métodos de pago
 METODOS_PAGO = [
@@ -41,6 +65,14 @@ class PrecheckConcepto(db.Model):
     descripcion = db.Column(db.String(255), nullable=False)
     cantidad = db.Column(db.Numeric(10, 2), nullable=False, default=1)
     precio_unitario = db.Column(db.Numeric(12, 2), nullable=False)
+    observaciones = db.Column(db.Text, nullable=True)
+    catalogo_item_id = db.Column(db.Integer, db.ForeignKey('catalogo_items.id', ondelete='SET NULL'), nullable=True)
+    modalidad = db.Column(db.String(20), nullable=True)            # por_persona, por_unidad, fijo
+    precio_lista = db.Column(db.Numeric(12, 2), nullable=True)     # precio del catálogo al momento de cargarlo
+    ajusta_ipc = db.Column(db.Boolean, nullable=False, default=True)
+    es_ajuste_ipc = db.Column(db.Boolean, nullable=False, default=False)
+    ipc_periodo_desde = db.Column(db.String(7), nullable=True)     # AAAA-MM (solo líneas de ajuste)
+    ipc_periodo_hasta = db.Column(db.String(7), nullable=True)
     created_at = db.Column(db.DateTime, default=ahora_argentina)
     updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
@@ -52,6 +84,20 @@ class PrecheckConcepto(db.Model):
         """Calcula el subtotal (cantidad * precio_unitario)"""
         return Decimal(str(self.cantidad)) * Decimal(str(self.precio_unitario))
 
+    @property
+    def fuera_de_lista(self):
+        """
+        Precio distinto al del catálogo, ítem cargado a mano o descuento.
+        Son los que tienen que aprobar Pilar o el Tano.
+        """
+        if self.es_ajuste_ipc:
+            return False
+        if Decimal(str(self.precio_unitario)) < 0:
+            return True
+        if self.precio_lista is None:
+            return True
+        return Decimal(str(self.precio_unitario)) != Decimal(str(self.precio_lista))
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -62,6 +108,15 @@ class PrecheckConcepto(db.Model):
             'cantidad': float(self.cantidad) if self.cantidad else 0,
             'precio_unitario': float(self.precio_unitario) if self.precio_unitario else 0,
             'subtotal': float(self.subtotal),
+            'observaciones': self.observaciones,
+            'catalogo_item_id': self.catalogo_item_id,
+            'modalidad': self.modalidad,
+            'precio_lista': float(self.precio_lista) if self.precio_lista is not None else None,
+            'fuera_de_lista': self.fuera_de_lista,
+            'ajusta_ipc': bool(self.ajusta_ipc),
+            'es_ajuste_ipc': bool(self.es_ajuste_ipc),
+            'ipc_periodo_desde': self.ipc_periodo_desde,
+            'ipc_periodo_hasta': self.ipc_periodo_hasta,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -79,6 +134,7 @@ class PrecheckAdicional(db.Model):
     categoria_otro = db.Column(db.String(100), nullable=True)  # Si categoria='Otros'
     descripcion = db.Column(db.String(255), nullable=False)
     monto = db.Column(db.Numeric(12, 2), nullable=False)
+    observaciones = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=ahora_argentina)
     updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
@@ -93,6 +149,7 @@ class PrecheckAdicional(db.Model):
             'categoria_otro': self.categoria_otro,
             'descripcion': self.descripcion,
             'monto': float(self.monto) if self.monto else 0,
+            'observaciones': self.observaciones,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -157,57 +214,184 @@ class PrecheckPago(db.Model):
 
 
 def calcular_resumen_precheck(evento):
+    """Resumen de totales del pre-check (se mantiene el nombre por compatibilidad)."""
+    from app.utils.precheck_calculo import calcular_resumen
+    return calcular_resumen(evento)
+
+
+class LocalSector(db.Model):
     """
-    Calcula el resumen completo del pre-check de un evento
-
-    Returns:
-        dict con totales, IVA, pendiente, etc.
+    Espacios/sectores de cada local (salón, terraza, exclusivo total...).
+    Cada uno con su capacidad y el valor de la exclusividad.
     """
-    from decimal import Decimal
+    __tablename__ = 'local_sectores'
 
-    # Sumar conceptos
-    total_conceptos = Decimal('0')
-    for concepto in evento.precheck_conceptos:
-        total_conceptos += concepto.subtotal
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    local_id = db.Column(db.Integer, db.ForeignKey('locales.id', ondelete='CASCADE'), nullable=False, index=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    pax_min = db.Column(db.Integer, nullable=True)
+    pax_max = db.Column(db.Integer, nullable=True)
+    precio_exclusividad = db.Column(db.Numeric(14, 2), nullable=True)
+    observaciones = db.Column(db.Text, nullable=True)
+    activo = db.Column(db.Boolean, nullable=False, default=True)
+    orden = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
-    # Sumar adicionales
-    total_adicionales = Decimal('0')
-    for adicional in evento.precheck_adicionales:
-        total_adicionales += Decimal(str(adicional.monto))
+    local = db.relationship('Local')
 
-    # Calcular subtotal
-    subtotal = total_conceptos + total_adicionales
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'local_id': self.local_id,
+            'local_nombre': self.local.nombre if self.local else None,
+            'nombre': self.nombre,
+            'pax_min': self.pax_min,
+            'pax_max': self.pax_max,
+            'precio_exclusividad': float(self.precio_exclusividad) if self.precio_exclusividad is not None else None,
+            'observaciones': self.observaciones,
+            'activo': bool(self.activo),
+            'orden': self.orden,
+        }
 
-    # Calcular IVA si está facturada
-    iva = Decimal('0')
-    if hasattr(evento, 'facturada') and evento.facturada:
-        iva = subtotal * Decimal('0.21')
 
-    # Total con IVA
-    total = subtotal + iva
+class CatalogoItem(db.Model):
+    """
+    Lista de precios que mantienen Pilar y el Tano. local_id NULL = vale para todos los locales.
+    """
+    __tablename__ = 'catalogo_items'
 
-    # Sumar pagos (solo los VALIDADO cuentan para el saldo)
-    total_pagado = Decimal('0')
-    for pago in evento.precheck_pagos:
-        if pago.estado == 'VALIDADO':
-            total_pagado += Decimal(str(pago.monto))
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    local_id = db.Column(db.Integer, db.ForeignKey('locales.id', ondelete='CASCADE'), nullable=True, index=True)
+    categoria = db.Column(db.String(50), nullable=False)
+    nombre = db.Column(db.String(200), nullable=False)
+    descripcion = db.Column(db.Text, nullable=True)
+    modalidad = db.Column(db.String(20), nullable=False, default='por_persona')
+    precio = db.Column(db.Numeric(14, 2), nullable=False)
+    ajusta_ipc = db.Column(db.Boolean, nullable=False, default=True)
+    activo = db.Column(db.Boolean, nullable=False, default=True)
+    orden = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
 
-    # Pendiente
-    pendiente = total - total_pagado
+    local = db.relationship('Local')
+    updated_by = db.relationship('Usuario')
 
-    return {
-        'total_conceptos': float(total_conceptos),
-        'total_adicionales': float(total_adicionales),
-        'subtotal': float(subtotal),
-        'iva': float(iva),
-        'total': float(total),
-        'total_pagado': float(total_pagado),
-        'pendiente': float(pendiente),
-        'cantidad_conceptos': evento.precheck_conceptos.count(),
-        'cantidad_adicionales': evento.precheck_adicionales.count(),
-        'cantidad_pagos': evento.precheck_pagos.count(),
-        'tiene_items': evento.precheck_conceptos.count() > 0 or evento.precheck_adicionales.count() > 0
-    }
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'local_id': self.local_id,
+            'local_nombre': self.local.nombre if self.local else 'Todos los locales',
+            'categoria': self.categoria,
+            'nombre': self.nombre,
+            'descripcion': self.descripcion,
+            'modalidad': self.modalidad,
+            'precio': float(self.precio) if self.precio is not None else 0,
+            'ajusta_ipc': bool(self.ajusta_ipc),
+            'activo': bool(self.activo),
+            'orden': self.orden,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'updated_by': self.updated_by.nombre if self.updated_by else None,
+        }
+
+
+class PrecheckConfig(db.Model):
+    """Parámetros generales editables desde la app (clave/valor)."""
+    __tablename__ = 'precheck_config'
+
+    clave = db.Column(db.String(60), primary_key=True)
+    valor = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
+
+
+# Valores por defecto si todavía no se configuraron.
+# propina_local_<id>: porcentaje de propina de cada local (0 = no se discrimina)
+CONFIG_DEFAULTS = {
+    'sena_porcentaje': '50',
+    'dias_saldo_antes_evento': '7',
+    'condiciones': '',
+}
+
+
+def leer_config():
+    valores = dict(CONFIG_DEFAULTS)
+    for c in PrecheckConfig.query.all():
+        if c.valor is not None:
+            valores[c.clave] = c.valor
+    return valores
+
+
+class Precheck(db.Model):
+    """Cabecera del pre-check: un registro por evento."""
+    __tablename__ = 'prechecks'
+
+    evento_id = db.Column(db.Integer, db.ForeignKey('eventos.id', ondelete='CASCADE'), primary_key=True)
+    sector_id = db.Column(db.Integer, db.ForeignKey('local_sectores.id', ondelete='SET NULL'), nullable=True)
+    motivo = db.Column(db.String(200), nullable=True)
+    razon_social = db.Column(db.String(200), nullable=True)   # empresa/agencia que factura, si aplica
+    propina_porcentaje = db.Column(db.Numeric(5, 2), nullable=False, default=0)
+    estado = db.Column(db.String(20), nullable=False, default='BORRADOR')
+    modificado_post_aprobacion = db.Column(db.Boolean, nullable=False, default=False)
+    enviado_revision_at = db.Column(db.DateTime, nullable=True)
+    enviado_revision_por_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
+    aprobado_at = db.Column(db.DateTime, nullable=True)
+    aprobado_por_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
+    cerrado_at = db.Column(db.DateTime, nullable=True)
+    cerrado_por_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
+    monto_final = db.Column(db.Numeric(14, 2), nullable=True)   # total al cerrar
+    saldo_al_cierre = db.Column(db.Numeric(14, 2), nullable=True)
+    created_at = db.Column(db.DateTime, default=ahora_argentina)
+    updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
+
+    evento = db.relationship('Evento', backref=db.backref('precheck', uselist=False, cascade='all, delete-orphan'))
+    sector = db.relationship('LocalSector')
+    enviado_revision_por = db.relationship('Usuario', foreign_keys=[enviado_revision_por_id])
+    aprobado_por = db.relationship('Usuario', foreign_keys=[aprobado_por_id])
+    cerrado_por = db.relationship('Usuario', foreign_keys=[cerrado_por_id])
+
+    def to_dict(self):
+        def fecha(d):
+            return d.isoformat() if d else None
+        return {
+            'sector_id': self.sector_id,
+            'sector': self.sector.to_dict() if self.sector else None,
+            'motivo': self.motivo,
+            'razon_social': self.razon_social,
+            'propina_porcentaje': float(self.propina_porcentaje or 0),
+            'estado': self.estado,
+            'modificado_post_aprobacion': bool(self.modificado_post_aprobacion),
+            'enviado_revision_at': fecha(self.enviado_revision_at),
+            'enviado_revision_por': self.enviado_revision_por.nombre if self.enviado_revision_por else None,
+            'aprobado_at': fecha(self.aprobado_at),
+            'aprobado_por': self.aprobado_por.nombre if self.aprobado_por else None,
+            'cerrado_at': fecha(self.cerrado_at),
+            'cerrado_por': self.cerrado_por.nombre if self.cerrado_por else None,
+            'monto_final': float(self.monto_final) if self.monto_final is not None else None,
+            'saldo_al_cierre': float(self.saldo_al_cierre) if self.saldo_al_cierre is not None else None,
+        }
+
+
+class PrecheckHistorial(db.Model):
+    """Quién cambió qué y cuándo en el pre-check."""
+    __tablename__ = 'precheck_historial'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    evento_id = db.Column(db.Integer, db.ForeignKey('eventos.id', ondelete='CASCADE'), nullable=False, index=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
+    accion = db.Column(db.String(60), nullable=False)
+    detalle = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=ahora_argentina, index=True)
+
+    usuario = db.relationship('Usuario')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'accion': self.accion,
+            'detalle': self.detalle,
+            'usuario': self.usuario.nombre if self.usuario else 'Sistema',
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
 
 
 class IpcIndice(db.Model):

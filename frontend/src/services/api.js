@@ -130,6 +130,26 @@ export const precheckApi = {
   actualizarFacturada: (eventoId, facturada) => api.put(`/precheck/${eventoId}/facturada`, { facturada }),
   // PDF
   descargarPdf: (eventoId) => api.get(`/precheck/${eventoId}/pdf`, { responseType: 'blob' }),
+  // Cabecera (sector, motivo, razón social, propina)
+  actualizarCabecera: (eventoId, data) => api.put(`/precheck/${eventoId}/cabecera`, data),
+  // Estados: enviar | aprobar | devolver | cerrar | reabrir
+  cambiarEstado: (eventoId, accion, comentario) => api.post(`/precheck/${eventoId}/estado`, { accion, comentario }),
+  // Ajuste por IPC
+  simularIpc: (eventoId) => api.get(`/precheck/${eventoId}/ipc`),
+  aplicarIpc: (eventoId) => api.post(`/precheck/${eventoId}/ipc`),
+};
+
+// Catálogo del pre-check: lista de precios, sectores y parámetros (escriben solo admin)
+export const catalogoApi = {
+  items: (params) => api.get('/catalogo/items', { params }),
+  crearItem: (data) => api.post('/catalogo/items', data),
+  actualizarItem: (id, data) => api.put(`/catalogo/items/${id}`, data),
+  copiarItems: (desde_local_id, hacia_local_id) => api.post('/catalogo/items/copiar', { desde_local_id, hacia_local_id }),
+  sectores: (params) => api.get('/catalogo/sectores', { params }),
+  crearSector: (data) => api.post('/catalogo/sectores', data),
+  actualizarSector: (id, data) => api.put(`/catalogo/sectores/${id}`, data),
+  config: () => api.get('/catalogo/config'),
+  guardarConfig: (data) => api.put('/catalogo/config', data),
 };
 
 // Calendario

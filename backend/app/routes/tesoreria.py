@@ -5,7 +5,7 @@ Endpoints para validar/rechazar pagos del pre-check
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Evento, Usuario
-from app.models_precheck import PrecheckPago
+from app.models_precheck import PrecheckPago, PrecheckHistorial
 from app.routes.auth import token_required
 from app.utils.timezone import ahora_argentina
 from app.utils.storage import enrich_pago_dict
@@ -144,6 +144,10 @@ def validar_pago(current_user, pago_id):
     pago.numero_oppen = numero_oppen
     pago.validado_por_id = current_user.id
     pago.fecha_validacion = ahora_argentina()
+    db.session.add(PrecheckHistorial(
+        evento_id=pago.evento_id, usuario_id=current_user.id, accion='Tesorería validó pago',
+        detalle=f"{pago.metodo_pago} ${float(pago.monto):,.0f} - Oppen {numero_oppen}".replace(',', '.')
+        + (f" (monto corregido: {pago.observacion_monto})" if pago.monto_original is not None and nuevo_monto is not None else '')))
 
     db.session.commit()
 
@@ -177,6 +181,9 @@ def rechazar_pago(current_user, pago_id):
     pago.motivo_rechazo = motivo
     pago.validado_por_id = current_user.id
     pago.fecha_validacion = ahora_argentina()
+    db.session.add(PrecheckHistorial(
+        evento_id=pago.evento_id, usuario_id=current_user.id, accion='Tesorería rechazó pago',
+        detalle=f"{pago.metodo_pago} ${float(pago.monto):,.0f}: {motivo}".replace(',', '.')))
 
     db.session.commit()
 

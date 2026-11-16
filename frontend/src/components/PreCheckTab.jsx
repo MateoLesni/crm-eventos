@@ -1,307 +1,440 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { precheckApi } from '../services/api';
 import './PreCheckTab.css';
 
-const CATEGORIAS = ['Gastronomía', 'Venue', 'Técnica', 'Servicios', 'Otros'];
 const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Tarjeta', 'Cheque', 'Otros'];
+const MODALIDAD_CORTA = { por_persona: 'x persona', por_unidad: 'x unidad', fijo: 'fijo' };
 
-export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
+const ESTADOS = {
+  BORRADOR: { label: 'Borrador', clase: 'borrador', ayuda: 'El comercial lo está armando.' },
+  EN_REVISION: { label: 'En revisión', clase: 'revision', ayuda: 'Esperando que lo revisen Pilar o el Tano.' },
+  APROBADO: { label: 'Aprobado', clase: 'aprobado', ayuda: 'Revisado. Se cierra el primer día hábil después del evento.' },
+  CERRADO: { label: 'Cerrado', clase: 'cerrado', ayuda: 'Cerrado con el total final del evento.' },
+};
+const ESTADO_CUOTA = { PAGADO: 'Pagado', PARCIAL: 'Parcial', PENDIENTE: 'Pendiente', VENCIDO: 'Vencido', SIN_MONTO: '—' };
+
+const pesos = (v) =>
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v || 0);
+
+const fechaCorta = (iso) => {
+  if (!iso) return '—';
+  const [a, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${a}`;
+};
+
+const fechaHora = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const dos = (n) => String(n).padStart(2, '0');
+  return `${dos(d.getDate())}/${dos(d.getMonth() + 1)}/${d.getFullYear()} ${dos(d.getHours())}:${dos(d.getMinutes())}`;
+};
+
+const errorDe = (err, porDefecto) => err?.response?.data?.error || porDefecto;
+
+// Input de pesos con separador de miles; permite negativo para descuentos
+function InputPesos({ value, onChange, permitirNegativo = false, placeholder = '0' }) {
+  const mostrar = value === '' || value === null || value === undefined ? '' :
+    (value < 0 ? '-' : '') + Math.abs(Number(value)).toLocaleString('es-AR');
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder={placeholder}
+      value={mostrar}
+      onChange={(e) => {
+        const neg = permitirNegativo && e.target.value.trim().startsWith('-');
+        const limpio = e.target.value.replace(/[^\d]/g, '');
+        if (limpio === '') onChange(neg ? '-' : '');
+        else onChange((neg ? -1 : 1) * parseInt(limpio, 10));
+      }}
+    />
+  );
+}
+
+const numero = (v) => (v === '' || v === '-' || v === null || v === undefined ? NaN : Number(v));
+
+// ==================== CABECERA ====================
+
+function DatosEvento({ data, puedeEditar, onGuardar, onToggleFacturada }) {
+  const { evento, precheck, sectores } = data;
+  const [motivo, setMotivo] = useState(precheck.motivo || '');
+  const [razon, setRazon] = useState(precheck.razon_social || '');
+  const [propina, setPropina] = useState(String(precheck.propina_porcentaje ?? 0));
+
+  const sector = precheck.sector;
+  const horario = evento.horario_inicio ? `${evento.horario_inicio}${evento.horario_fin ? ` a ${evento.horario_fin}` : ''} h` : '—';
+
+  return (
+    <section className="pc-datos">
+      <div className="pc-dato">
+        <span>Fecha</span>
+        <strong>{fechaCorta(evento.fecha_evento)}</strong>
+      </div>
+      <div className="pc-dato">
+        <span>Horario</span>
+        <strong>{horario}</strong>
+      </div>
+      <div className="pc-dato">
+        <span>Personas</span>
+        <strong>{evento.cantidad_personas || '—'}</strong>
+      </div>
+      <div className="pc-dato pc-dato-ancho">
+        <span>Espacio en {evento.local || 'el local'}</span>
+        {puedeEditar ? (
+          <select value={precheck.sector_id || ''} onChange={(e) => onGuardar({ sector_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">{sectores.length ? 'Elegí el espacio' : 'No hay espacios cargados en el catálogo'}</option>
+            {sectores.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre}{s.pax_min || s.pax_max ? ` (${s.pax_min || '?'}–${s.pax_max || '?'} pax)` : ''}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <strong>{sector ? sector.nombre : '—'}</strong>
+        )}
+      </div>
+      <div className="pc-dato pc-dato-ancho">
+        <span>Motivo</span>
+        {puedeEditar ? (
+          <input value={motivo} placeholder="Ej.: fin de año, cumpleaños 40, lanzamiento" maxLength={200}
+            onChange={(e) => setMotivo(e.target.value)}
+            onBlur={() => motivo !== (precheck.motivo || '') && onGuardar({ motivo })} />
+        ) : <strong>{precheck.motivo || '—'}</strong>}
+      </div>
+      <div className="pc-dato pc-dato-ancho">
+        <span>Razón social {evento.es_agencia ? '(agencia)' : '/ empresa'}</span>
+        {puedeEditar ? (
+          <input value={razon} placeholder="Si factura una empresa o agencia" maxLength={200}
+            onChange={(e) => setRazon(e.target.value)}
+            onBlur={() => razon !== (precheck.razon_social || '') && onGuardar({ razon_social: razon })} />
+        ) : <strong>{precheck.razon_social || '—'}</strong>}
+      </div>
+      <div className="pc-dato">
+        <span>Propina</span>
+        {puedeEditar ? (
+          <span className="pc-pct">
+            <input value={propina} inputMode="decimal" onChange={(e) => setPropina(e.target.value.replace(/[^\d.]/g, ''))}
+              onBlur={() => Number(propina || 0) !== Number(precheck.propina_porcentaje || 0) && onGuardar({ propina_porcentaje: Number(propina || 0) })} />%
+          </span>
+        ) : <strong>{precheck.propina_porcentaje || 0}%</strong>}
+      </div>
+      <div className="pc-dato">
+        <span>Factura</span>
+        <label className="toggle-switch" title="Con factura suma IVA 21%">
+          <input type="checkbox" checked={!!data.facturada} onChange={onToggleFacturada} disabled={!puedeEditar} />
+          <span className="toggle-slider"></span>
+        </label>
+      </div>
+    </section>
+  );
+}
+
+// ==================== FORM DE ÍTEM ====================
+
+function FormItem({ data, editando, onCancelar, onGuardar, guardando }) {
+  const pax = data.evento.cantidad_personas || 1;
+  const esIpc = editando?.es_ajuste_ipc;
+  const [modo, setModo] = useState(editando ? (editando.catalogo_item_id ? 'lista' : 'mano') : (data.catalogo.length ? 'lista' : 'mano'));
+  const [itemId, setItemId] = useState(editando?.catalogo_item_id ? String(editando.catalogo_item_id) : '');
+  const [form, setForm] = useState(() => editando ? {
+    categoria: editando.categoria,
+    categoria_otro: editando.categoria_otro || '',
+    descripcion: editando.descripcion,
+    cantidad: editando.cantidad,
+    precio_unitario: editando.precio_unitario,
+    observaciones: editando.observaciones || '',
+  } : { categoria: 'Menú', categoria_otro: '', descripcion: '', cantidad: 1, precio_unitario: '', observaciones: '' });
+
+  const porCategoria = useMemo(() => {
+    const g = {};
+    data.catalogo.forEach((i) => { (g[i.categoria] = g[i.categoria] || []).push(i); });
+    return g;
+  }, [data.catalogo]);
+
+  const item = data.catalogo.find((i) => String(i.id) === itemId);
+  const precioLista = editando ? editando.precio_lista : item?.precio;
+  const distintoDeLista = precioLista !== null && precioLista !== undefined && numero(form.precio_unitario) !== Number(precioLista);
+
+  const elegirItem = (id) => {
+    setItemId(id);
+    const it = data.catalogo.find((i) => String(i.id) === id);
+    if (it) {
+      setForm((f) => ({
+        ...f,
+        categoria: it.categoria,
+        descripcion: it.nombre,
+        cantidad: it.modalidad === 'por_persona' ? pax : 1,
+        precio_unitario: it.precio,
+      }));
+    }
+  };
+
+  const enviar = () => {
+    const cant = numero(form.cantidad);
+    const precio = numero(form.precio_unitario);
+    if (Number.isNaN(cant) || cant < 0) return alert('Revisá la cantidad');
+    if (Number.isNaN(precio)) return alert('Revisá el precio');
+    if (!editando && modo === 'lista' && !itemId) return alert('Elegí un ítem de la lista');
+    if (modo === 'mano' && !form.descripcion.trim()) return alert('Poné una descripción');
+    const datos = { cantidad: cant, precio_unitario: precio, observaciones: form.observaciones };
+    if (!editando && modo === 'lista') datos.catalogo_item_id = Number(itemId);
+    if (modo === 'mano' || editando) {
+      datos.descripcion = form.descripcion;
+      if (!esIpc) {
+        datos.categoria = form.categoria;
+        datos.categoria_otro = form.categoria_otro;
+      }
+    }
+    onGuardar(datos);
+  };
+
+  const subtotal = (numero(form.cantidad) || 0) * (numero(form.precio_unitario) || 0);
+
+  return (
+    <div className="form-inline pc-form">
+      {!editando && (
+        <div className="pc-modo">
+          <button className={modo === 'lista' ? 'activo' : ''} onClick={() => setModo('lista')} disabled={!data.catalogo.length}
+            title={data.catalogo.length ? '' : 'Todavía no hay ítems cargados en el catálogo para este local'}>
+            De la lista de precios
+          </button>
+          <button className={modo === 'mano' ? 'activo' : ''} onClick={() => setModo('mano')}>A mano</button>
+        </div>
+      )}
+      <div className="form-row form-row-labels">
+        {modo === 'lista' && !editando ? (
+          <div className="form-field" style={{ flex: 3 }}>
+            <label>Ítem</label>
+            <select value={itemId} onChange={(e) => elegirItem(e.target.value)} autoFocus>
+              <option value="">Elegí de la lista…</option>
+              {Object.entries(porCategoria).map(([cat, items]) => (
+                <optgroup key={cat} label={cat}>
+                  {items.map((i) => (
+                    <option key={i.id} value={i.id}>{i.nombre} · {pesos(i.precio)} {MODALIDAD_CORTA[i.modalidad] || ''}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <>
+            {!esIpc && (
+              <div className="form-field">
+                <label>Rubro</label>
+                <select value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                  disabled={!!editando?.catalogo_item_id}>
+                  {[...data.categorias, ...(data.categorias.includes(form.categoria) ? [] : [form.categoria])].map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+            )}
+            {form.categoria === 'Otros' && (
+              <div className="form-field">
+                <label>¿Cuál?</label>
+                <input type="text" value={form.categoria_otro} onChange={(e) => setForm({ ...form, categoria_otro: e.target.value })} />
+              </div>
+            )}
+            <div className="form-field" style={{ flex: 2 }}>
+              <label>Descripción</label>
+              <input type="text" value={form.descripcion} autoFocus={!editando} placeholder="Ej.: Bonificación por volumen"
+                onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+            </div>
+          </>
+        )}
+        <div className="form-field" style={{ width: 80 }}>
+          <label>Cantidad</label>
+          <input type="text" inputMode="decimal" value={form.cantidad}
+            onChange={(e) => setForm({ ...form, cantidad: e.target.value.replace(/[^\d.]/g, '') })} />
+        </div>
+        <div className="form-field" style={{ width: 130 }}>
+          <label>Precio unit.</label>
+          <InputPesos value={form.precio_unitario} permitirNegativo onChange={(v) => setForm((f) => ({
+            ...f,
+            precio_unitario: v,
+            // un precio negativo cargado a mano es un descuento
+            categoria: modo === 'mano' && !editando && (v === '-' || v < 0) && f.categoria === 'Menú' ? 'Descuento' : f.categoria,
+          }))} />
+        </div>
+      </div>
+      <div className="form-row form-row-labels">
+        <div className="form-field" style={{ flex: 1 }}>
+          <label>Observaciones</label>
+          <input type="text" value={form.observaciones} placeholder="Ej.: 3 celíacos, Malbec, brindis con espumante…"
+            onChange={(e) => setForm({ ...form, observaciones: e.target.value })} />
+        </div>
+      </div>
+      <div className="pc-form-pie">
+        <span className="pc-form-subtotal">Subtotal: <strong>{pesos(subtotal)}</strong></span>
+        {distintoDeLista && !esIpc && (
+          <span className="pc-aviso-lista">Precio de lista {pesos(precioLista)}: queda marcado para que lo aprueben Pilar o el Tano</span>
+        )}
+        {modo === 'mano' && !editando && (
+          <span className="pc-aviso-lista">Los ítems cargados a mano los aprueban Pilar o el Tano</span>
+        )}
+        <div className="form-actions">
+          <button className="btn-guardar" onClick={enviar} disabled={guardando}>{guardando ? 'Guardando…' : (editando ? 'Actualizar' : 'Agregar')}</button>
+          <button className="btn-cancelar" onClick={onCancelar}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== COMPONENTE PRINCIPAL ====================
+
+export default function PreCheckTab({ eventoId, onPrecheckChange }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [precheck, setPrecheck] = useState(null);
+  const [data, setData] = useState(null);
+  const ultimoTieneItems = useRef(null);
 
-  // Estados para formularios
-  const [showConceptoForm, setShowConceptoForm] = useState(false);
+  const [formItem, setFormItem] = useState(null); // null | 'nuevo' | concepto
   const [showAdicionalForm, setShowAdicionalForm] = useState(false);
   const [showPagoForm, setShowPagoForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [verHistorial, setVerHistorial] = useState(false);
+  const [ipc, setIpc] = useState(null);
 
-  // Formulario concepto
-  const [conceptoForm, setConceptoForm] = useState({
-    categoria: 'Gastronomía',
-    categoria_otro: '',
-    descripcion: '',
-    cantidad: 1,
-    precio_unitario: 0
-  });
-
-  // Formulario adicional
-  const [adicionalForm, setAdicionalForm] = useState({
-    categoria: 'Gastronomía',
-    categoria_otro: '',
-    descripcion: '',
-    monto: 0
-  });
-
-  // Formulario pago
+  const [adicionalForm, setAdicionalForm] = useState({ categoria: 'Vinos', categoria_otro: '', descripcion: '', monto: '', observaciones: '' });
   const [pagoForm, setPagoForm] = useState({
-    metodo_pago: 'Transferencia',
-    monto: 0,
-    fecha_deposito: new Date().toISOString().split('T')[0],
-    fecha_acreditacion: '',
-    notas: ''
+    metodo_pago: 'Transferencia', monto: '', fecha_deposito: new Date().toISOString().split('T')[0], fecha_acreditacion: '', notas: '',
   });
   const [comprobanteFile, setComprobanteFile] = useState(null);
   const [comprobantePreview, setComprobantePreview] = useState(null);
   const [lightboxUrl, setLightboxUrl] = useState(null);
-
   const [guardando, setGuardando] = useState(false);
 
-  useEffect(() => {
-    cargarPrecheck();
-  }, [eventoId]);
-
-  const cargarPrecheck = async () => {
+  const cargarPrecheck = async ({ silencioso = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       setError(null);
       const response = await precheckApi.obtener(eventoId);
-      setPrecheck(response.data);
+      setData(response.data);
+      const tiene = response.data.resumen.tiene_items;
       if (onPrecheckChange) {
-        onPrecheckChange(response.data.resumen.tiene_items);
+        // segundo parámetro: si cambió (para refrescar el tablero solo cuando hace falta)
+        onPrecheckChange(tiene, ultimoTieneItems.current !== null && ultimoTieneItems.current !== tiene);
       }
+      ultimoTieneItems.current = tiene;
     } catch (err) {
-      console.error('Error cargando pre-check:', err);
-      if (err.response?.status === 403) {
-        setError('El pre-check solo está disponible para eventos confirmados o concluidos');
-      } else {
-        setError('Error al cargar el pre-check');
-      }
+      if (err.response?.status === 403) setError(errorDe(err, 'No tenés acceso a este pre-check'));
+      else setError('Error al cargar el pre-check');
     } finally {
       setLoading(false);
     }
   };
 
-  const formatearMoneda = (valor) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(valor);
-  };
+  useEffect(() => {
+    ultimoTieneItems.current = null;
+    setIpc(null);
+    cargarPrecheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventoId]);
 
-  // Formatear número con separador de miles (para inputs)
-  const formatearNumero = (valor) => {
-    if (valor === '' || valor === null || valor === undefined) return '';
-    const numero = parseInt(String(valor).replace(/\./g, ''), 10);
-    if (isNaN(numero)) return '';
-    return numero.toLocaleString('es-AR');
-  };
-
-  // Parsear número formateado a número real
-  const parsearNumero = (valorFormateado) => {
-    if (!valorFormateado) return 0;
-    return parseInt(String(valorFormateado).replace(/\./g, ''), 10) || 0;
-  };
-
-  // Manejar cambio en input de monto (con formateo en tiempo real)
-  const handleMontoChange = (valorFormateado, setter, campo) => {
-    // Remover todo excepto números
-    const soloNumeros = valorFormateado.replace(/[^\d]/g, '');
-    const numero = parseInt(soloNumeros, 10) || 0;
-    setter(prev => ({ ...prev, [campo]: numero }));
-  };
-
-  // Obtener valor formateado para mostrar en input
-  const getMontoFormateado = (valor) => {
-    if (valor === 0 || valor === '' || valor === null) return '';
-    return formatearNumero(valor);
-  };
-
-  // ==================== CONCEPTOS ====================
-
-  const handleGuardarConcepto = async () => {
+  const ejecutar = async (accion, mensajeError) => {
     try {
       setGuardando(true);
-      if (editingItem) {
-        await precheckApi.actualizarConcepto(eventoId, editingItem.id, conceptoForm);
-      } else {
-        await precheckApi.agregarConcepto(eventoId, conceptoForm);
-      }
-      await cargarPrecheck();
-      resetConceptoForm();
+      await accion();
+      await cargarPrecheck({ silencioso: true });
+      return true;
     } catch (err) {
-      console.error('Error guardando concepto:', err);
-      alert(err.response?.data?.error || 'Error al guardar concepto');
+      alert(errorDe(err, mensajeError));
+      return false;
     } finally {
       setGuardando(false);
     }
   };
 
-  const handleEditarConcepto = (concepto) => {
-    setConceptoForm({
-      categoria: concepto.categoria,
-      categoria_otro: concepto.categoria_otro || '',
-      descripcion: concepto.descripcion,
-      cantidad: concepto.cantidad,
-      precio_unitario: concepto.precio_unitario
-    });
-    setEditingItem(concepto);
-    setShowConceptoForm(true);
-  };
+  // ---------- Cabecera y estado
+  const guardarCabecera = (cambios) => ejecutar(() => precheckApi.actualizarCabecera(eventoId, cambios), 'No se pudo guardar');
+  const toggleFacturada = () => ejecutar(() => precheckApi.actualizarFacturada(eventoId, !data.facturada), 'Error al actualizar la facturación');
 
-  const handleEliminarConcepto = async (conceptoId) => {
-    if (!confirm('¿Eliminar este concepto?')) return;
-    try {
-      await precheckApi.eliminarConcepto(eventoId, conceptoId);
-      await cargarPrecheck();
-    } catch (err) {
-      console.error('Error eliminando concepto:', err);
-      alert(err.response?.data?.error || 'Error al eliminar concepto');
+  const cambiarEstado = async (accion) => {
+    let comentario = '';
+    if (accion === 'devolver') {
+      comentario = window.prompt('¿Qué hay que corregir? (lo ve el comercial en el historial)');
+      if (!comentario) return;
+    } else if (accion === 'reabrir') {
+      comentario = window.prompt('¿Por qué se reabre?');
+      if (!comentario) return;
+    } else if (accion === 'cerrar') {
+      const pendiente = data.resumen.pendiente;
+      const texto = pendiente > 0.5
+        ? `Queda un saldo de ${pesos(pendiente)}. Dejá un comentario para cerrar igual (ej.: pasa a cuenta corriente del local):`
+        : `Se cierra con un total final de ${pesos(data.resumen.total)}. Comentario opcional:`;
+      const r = window.prompt(texto, '');
+      if (r === null) return;
+      comentario = r;
+    } else if (accion === 'aprobar' && data.alertas.some((a) => a.nivel === 'error')) {
+      if (!window.confirm('Hay avisos marcados en rojo. ¿Aprobar igual?')) return;
+    } else if (accion === 'enviar') {
+      if (!window.confirm('¿Mandar el pre-check a revisión de Pilar o el Tano?')) return;
     }
+    await ejecutar(() => precheckApi.cambiarEstado(eventoId, accion, comentario), 'No se pudo cambiar el estado');
   };
 
-  const resetConceptoForm = () => {
-    setConceptoForm({
-      categoria: 'Gastronomía',
-      categoria_otro: '',
-      descripcion: '',
-      cantidad: 1,
-      precio_unitario: 0
-    });
-    setEditingItem(null);
-    setShowConceptoForm(false);
+  // ---------- Ítems
+  const guardarItem = async (datos) => {
+    const ok = await ejecutar(
+      () => (formItem === 'nuevo' ? precheckApi.agregarConcepto(eventoId, datos) : precheckApi.actualizarConcepto(eventoId, formItem.id, datos)),
+      'Error al guardar el ítem');
+    if (ok) setFormItem(null);
   };
 
-  // ==================== ADICIONALES ====================
-
-  const handleGuardarAdicional = async () => {
-    try {
-      setGuardando(true);
-      if (editingItem) {
-        await precheckApi.actualizarAdicional(eventoId, editingItem.id, adicionalForm);
-      } else {
-        await precheckApi.agregarAdicional(eventoId, adicionalForm);
-      }
-      await cargarPrecheck();
-      resetAdicionalForm();
-    } catch (err) {
-      console.error('Error guardando adicional:', err);
-      alert(err.response?.data?.error || 'Error al guardar adicional');
-    } finally {
-      setGuardando(false);
-    }
+  const eliminarItem = (c) => {
+    if (!window.confirm(`¿Eliminar "${c.descripcion}"?`)) return;
+    ejecutar(() => precheckApi.eliminarConcepto(eventoId, c.id), 'Error al eliminar');
   };
 
-  const handleEditarAdicional = (adicional) => {
-    setAdicionalForm({
-      categoria: adicional.categoria,
-      categoria_otro: adicional.categoria_otro || '',
-      descripcion: adicional.descripcion,
-      monto: adicional.monto
-    });
-    setEditingItem(adicional);
-    setShowAdicionalForm(true);
-  };
+  const agregarExclusividad = () =>
+    ejecutar(() => precheckApi.agregarConcepto(eventoId, { exclusividad_sector: true }), 'No se pudo agregar la exclusividad');
 
-  const handleEliminarAdicional = async (adicionalId) => {
-    if (!confirm('¿Eliminar este adicional?')) return;
-    try {
-      await precheckApi.eliminarAdicional(eventoId, adicionalId);
-      await cargarPrecheck();
-    } catch (err) {
-      console.error('Error eliminando adicional:', err);
-      alert(err.response?.data?.error || 'Error al eliminar adicional');
-    }
-  };
-
+  // ---------- Adicionales
   const resetAdicionalForm = () => {
-    setAdicionalForm({
-      categoria: 'Gastronomía',
-      categoria_otro: '',
-      descripcion: '',
-      monto: 0
-    });
+    setAdicionalForm({ categoria: 'Vinos', categoria_otro: '', descripcion: '', monto: '', observaciones: '' });
     setEditingItem(null);
     setShowAdicionalForm(false);
   };
 
-  // ==================== PAGOS ====================
+  const handleGuardarAdicional = async () => {
+    if (!adicionalForm.descripcion.trim()) return alert('Poné una descripción');
+    if (Number.isNaN(numero(adicionalForm.monto))) return alert('Poné el monto');
+    const datos = { ...adicionalForm, monto: numero(adicionalForm.monto) };
+    const ok = await ejecutar(
+      () => (editingItem ? precheckApi.actualizarAdicional(eventoId, editingItem.id, datos) : precheckApi.agregarAdicional(eventoId, datos)),
+      'Error al guardar el adicional');
+    if (ok) resetAdicionalForm();
+  };
 
-  const handleGuardarPago = async () => {
-    // Fechas obligatorias
-    if (!pagoForm.fecha_deposito || !pagoForm.fecha_acreditacion) {
-      alert('Las fechas de depósito y acreditación son obligatorias');
-      return;
-    }
-    // Comprobante obligatorio al crear nuevo pago
-    if (!editingItem && !comprobanteFile) {
-      alert('Debés adjuntar un comprobante para registrar el pago');
-      return;
-    }
+  const handleEditarAdicional = (a) => {
+    setAdicionalForm({ categoria: a.categoria, categoria_otro: a.categoria_otro || '', descripcion: a.descripcion, monto: a.monto, observaciones: a.observaciones || '' });
+    setEditingItem(a);
+    setShowAdicionalForm(true);
+  };
+
+  const handleEliminarAdicional = (a) => {
+    if (!window.confirm(`¿Eliminar "${a.descripcion}"?`)) return;
+    ejecutar(() => precheckApi.eliminarAdicional(eventoId, a.id), 'Error al eliminar');
+  };
+
+  // ---------- IPC
+  const verIpc = async () => {
     try {
-      setGuardando(true);
-      if (editingItem) {
-        await precheckApi.actualizarPago(eventoId, editingItem.id, pagoForm);
-        // Si seleccionó nuevo comprobante al editar, subirlo
-        if (comprobanteFile) {
-          await precheckApi.subirComprobante(eventoId, editingItem.id, comprobanteFile);
-        }
-      } else {
-        const res = await precheckApi.agregarPago(eventoId, pagoForm);
-        const nuevoPagoId = res.data.pago.id;
-        // Subir comprobante inmediatamente — si falla, eliminar el pago
-        try {
-          await precheckApi.subirComprobante(eventoId, nuevoPagoId, comprobanteFile);
-        } catch (uploadErr) {
-          // Rollback: eliminar el pago que quedó sin comprobante
-          try { await precheckApi.eliminarPago(eventoId, nuevoPagoId); } catch (_) {}
-          throw uploadErr;
-        }
-      }
-      await cargarPrecheck();
-      resetPagoForm();
+      const r = await precheckApi.simularIpc(eventoId);
+      setIpc(r.data);
     } catch (err) {
-      console.error('Error guardando pago:', err);
-      alert(err.response?.data?.error || 'Error al guardar pago. Verificá que el comprobante sea válido.');
-      await cargarPrecheck();
-    } finally {
-      setGuardando(false);
+      alert(errorDe(err, 'No se pudo calcular el IPC'));
     }
   };
 
-  const handleEditarPago = (pago) => {
-    setPagoForm({
-      metodo_pago: pago.metodo_pago,
-      monto: pago.monto,
-      fecha_deposito: pago.fecha_deposito || '',
-      fecha_acreditacion: pago.fecha_acreditacion || '',
-      notas: pago.notas || ''
-    });
-    setEditingItem(pago);
-    setShowPagoForm(true);
+  const aplicarIpc = async () => {
+    if (!window.confirm(`Se agrega una línea de ajuste por ${pesos(ipc.ajuste)} (+${ipc.variacion_pct}%). ¿Aplicar?`)) return;
+    const ok = await ejecutar(() => precheckApi.aplicarIpc(eventoId), 'No se pudo aplicar el ajuste');
+    if (ok) setIpc(null);
   };
 
-  const handleEliminarPago = async (pagoId) => {
-    if (!confirm('¿Eliminar este pago?')) return;
-    try {
-      await precheckApi.eliminarPago(eventoId, pagoId);
-      await cargarPrecheck();
-    } catch (err) {
-      console.error('Error eliminando pago:', err);
-      alert(err.response?.data?.error || 'Error al eliminar pago');
-    }
-  };
-
-  const handleSubirComprobante = async (pagoId, file) => {
-    try {
-      await precheckApi.subirComprobante(eventoId, pagoId, file);
-      await cargarPrecheck();
-    } catch (err) {
-      console.error('Error subiendo comprobante:', err);
-      alert(err.response?.data?.error || 'Error al subir comprobante');
-    }
-  };
-
+  // ---------- Pagos
   const resetPagoForm = () => {
-    setPagoForm({
-      metodo_pago: 'Transferencia',
-      monto: 0,
-      fecha_deposito: new Date().toISOString().split('T')[0],
-      fecha_acreditacion: '',
-      notas: ''
-    });
+    setPagoForm({ metodo_pago: 'Transferencia', monto: '', fecha_deposito: new Date().toISOString().split('T')[0], fecha_acreditacion: '', notas: '' });
     setComprobanteFile(null);
     if (comprobantePreview) URL.revokeObjectURL(comprobantePreview);
     setComprobantePreview(null);
@@ -309,35 +442,64 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
     setShowPagoForm(false);
   };
 
-  // ==================== FACTURADA ====================
-
-  const handleToggleFacturada = async () => {
+  const handleGuardarPago = async () => {
+    if (!pagoForm.fecha_deposito || !pagoForm.fecha_acreditacion) return alert('Las fechas de depósito y acreditación son obligatorias');
+    if (!(numero(pagoForm.monto) > 0)) return alert('Poné el monto del pago');
+    if (!editingItem && !comprobanteFile) return alert('Adjuntá el comprobante para registrar el pago');
+    const datos = { ...pagoForm, monto: numero(pagoForm.monto) };
     try {
-      await precheckApi.actualizarFacturada(eventoId, !precheck.facturada);
-      await cargarPrecheck();
+      setGuardando(true);
+      if (editingItem) {
+        await precheckApi.actualizarPago(eventoId, editingItem.id, datos);
+        if (comprobanteFile) await precheckApi.subirComprobante(eventoId, editingItem.id, comprobanteFile);
+      } else {
+        const res = await precheckApi.agregarPago(eventoId, datos);
+        const nuevoPagoId = res.data.pago.id;
+        try {
+          await precheckApi.subirComprobante(eventoId, nuevoPagoId, comprobanteFile);
+        } catch (uploadErr) {
+          try { await precheckApi.eliminarPago(eventoId, nuevoPagoId); } catch { /* ya informamos el error de subida */ }
+          throw uploadErr;
+        }
+      }
+      await cargarPrecheck({ silencioso: true });
+      resetPagoForm();
     } catch (err) {
-      console.error('Error actualizando facturada:', err);
-      alert(err.response?.data?.error || 'Error al actualizar estado de facturación');
+      alert(errorDe(err, 'Error al guardar el pago. Verificá que el comprobante sea válido.'));
+      await cargarPrecheck({ silencioso: true });
+    } finally {
+      setGuardando(false);
     }
   };
 
-  // ==================== EXPORTAR PDF ====================
+  const handleEditarPago = (pago) => {
+    setPagoForm({ metodo_pago: pago.metodo_pago, monto: pago.monto, fecha_deposito: pago.fecha_deposito || '', fecha_acreditacion: pago.fecha_acreditacion || '', notas: pago.notas || '' });
+    setEditingItem(pago);
+    setShowPagoForm(true);
+  };
+
+  const handleEliminarPago = (pagoId) => {
+    if (!window.confirm('¿Eliminar este pago?')) return;
+    ejecutar(() => precheckApi.eliminarPago(eventoId, pagoId), 'Error al eliminar el pago');
+  };
+
+  const handleSubirComprobante = (pagoId, file) =>
+    ejecutar(() => precheckApi.subirComprobante(eventoId, pagoId, file), 'Error al subir el comprobante');
 
   const handleExportarPdf = async () => {
     try {
       const response = await precheckApi.descargarPdf(eventoId);
-      // Crear URL del blob y descargar
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `precheck_evento_${eventoId}.pdf`);
+      const cliente = (data.evento.cliente || 'cliente').replace(/[^A-Za-z0-9]+/g, '_');
+      link.setAttribute('download', `precheck_${cliente}_${(data.evento.fecha_evento || '').replace(/-/g, '')}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Error exportando PDF:', err);
-      alert('Error al exportar PDF');
+    } catch {
+      alert('Error al generar el PDF');
     }
   };
 
@@ -351,549 +513,491 @@ export default function PreCheckTab({ eventoId, estado, onPrecheckChange }) {
       </div>
     );
   }
+  if (error) return <div className="precheck-error"><p>{error}</p></div>;
+  if (!data) return <div className="precheck-no-disponible"><p>Pre-check no disponible</p></div>;
 
-  if (error) {
-    return (
-      <div className="precheck-error">
-        <p>{error}</p>
-      </div>
-    );
-  }
-
-  if (!precheck) {
-    return (
-      <div className="precheck-no-disponible">
-        <p>Pre-check no disponible</p>
-      </div>
-    );
-  }
-
-  const { conceptos, adicionales, pagos, resumen, puede_editar, puede_editar_pagos } = precheck;
+  const { conceptos, adicionales, pagos, resumen, permisos, precheck, alertas, historial } = data;
+  const puede_editar = permisos.puede_editar;
+  const puede_editar_pagos = permisos.puede_editar_pagos;
+  const estado = ESTADOS[precheck.estado] || ESTADOS.BORRADOR;
+  const sector = precheck.sector;
+  const tieneExclusividad = conceptos.some((c) => c.categoria === 'Exclusividad');
+  const fueraDeLista = conceptos.filter((c) => c.fuera_de_lista).length;
+  const quien = precheck.estado === 'CERRADO' ? (precheck.cerrado_por && `por ${precheck.cerrado_por}${precheck.cerrado_at ? ` el ${fechaHora(precheck.cerrado_at)}` : ''}`)
+    : precheck.estado === 'APROBADO' ? (precheck.aprobado_por && `por ${precheck.aprobado_por}${precheck.aprobado_at ? ` el ${fechaHora(precheck.aprobado_at)}` : ''}`)
+      : precheck.estado === 'EN_REVISION' ? (precheck.enviado_revision_por && `enviado por ${precheck.enviado_revision_por}${precheck.enviado_revision_at ? ` el ${fechaHora(precheck.enviado_revision_at)}` : ''}`)
+        : null;
 
   return (
     <div className="precheck-container">
-      {/* Header con toggle de facturada y boton PDF */}
-      <div className="precheck-header">
-        <div className="facturada-toggle">
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={precheck.facturada}
-              onChange={handleToggleFacturada}
-              disabled={!puede_editar}
-            />
-            <span className="toggle-slider"></span>
-          </label>
-          <span className="toggle-label">
-            Facturada {precheck.facturada && '(+21% IVA)'}
-          </span>
+      {/* Estado y acciones */}
+      <div className="pc-estado-barra">
+        <div className="pc-estado-info">
+          <span className={`pc-estado pc-estado-${estado.clase}`}>{estado.label}</span>
+          {precheck.modificado_post_aprobacion && <span className="pc-estado pc-estado-cambio">Con cambios sin aprobar</span>}
+          <span className="pc-estado-ayuda">{quien || estado.ayuda}</span>
         </div>
-        <div className="header-actions">
-          {!puede_editar && (
-            <span className="solo-lectura-badge">Solo lectura</span>
+        <div className="pc-estado-acciones">
+          {permisos.puede_enviar_revision && <button className="pc-btn primario" onClick={() => cambiarEstado('enviar')} disabled={guardando}>Enviar a revisión</button>}
+          {permisos.puede_devolver && <button className="pc-btn" onClick={() => cambiarEstado('devolver')} disabled={guardando}>Devolver</button>}
+          {permisos.puede_aprobar && (
+            <button className="pc-btn primario" onClick={() => cambiarEstado('aprobar')} disabled={guardando}>
+              {precheck.estado === 'APROBADO' ? 'Aprobar cambios' : 'Aprobar'}
+            </button>
           )}
-          <button className="btn-exportar-pdf" onClick={handleExportarPdf} title="Exportar PDF">
+          {permisos.puede_cerrar && <button className="pc-btn" onClick={() => cambiarEstado('cerrar')} disabled={guardando}>Cerrar pre-check</button>}
+          {permisos.puede_reabrir && <button className="pc-btn" onClick={() => cambiarEstado('reabrir')} disabled={guardando}>Reabrir</button>}
+          <button className="btn-exportar-pdf" onClick={handleExportarPdf} title="PDF para el cliente, con el anexo de condiciones">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="12" y1="18" x2="12" y2="12"/>
-              <polyline points="9 15 12 18 15 15"/>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="18" x2="12" y2="12" />
+              <polyline points="9 15 12 18 15 15" />
             </svg>
             PDF
           </button>
         </div>
       </div>
 
-      {/* Sección Conceptos */}
+      {!puede_editar && permisos.motivo_no_editable && <div className="pc-solo-lectura">{permisos.motivo_no_editable}</div>}
+
+      {alertas.length > 0 && (
+        <ul className="pc-alertas">
+          {alertas.map((a, i) => <li key={i} className={`pc-alerta pc-alerta-${a.nivel}`}>{a.texto}</li>)}
+        </ul>
+      )}
+
+      <DatosEvento
+        key={`${precheck.motivo}|${precheck.razon_social}|${precheck.propina_porcentaje}`}
+        data={data} puedeEditar={puede_editar} onGuardar={guardarCabecera} onToggleFacturada={toggleFacturada} />
+
+      {/* Lo contratado */}
       <section className="precheck-section">
         <div className="section-header">
-          <h4>Conceptos</h4>
+          <h4>Lo contratado</h4>
           {puede_editar && (
-            <button
-              className="btn-agregar"
-              onClick={() => {
-                resetConceptoForm();
-                setShowConceptoForm(true);
-              }}
-            >
-              + Agregar
-            </button>
+            <div className="pc-header-btns">
+              {sector?.precio_exclusividad !== null && sector?.precio_exclusividad !== undefined && !tieneExclusividad && (
+                <button className="btn-agregar secundario" onClick={agregarExclusividad} disabled={guardando}>
+                  + Exclusividad {sector.nombre} ({pesos(sector.precio_exclusividad)})
+                </button>
+              )}
+              <button className="btn-agregar" onClick={() => setFormItem('nuevo')} disabled={formItem !== null}>+ Agregar ítem</button>
+            </div>
           )}
         </div>
 
-        {conceptos.length === 0 ? (
-          <p className="empty-message">No hay conceptos agregados</p>
-        ) : (
-          <table className="precheck-table">
-            <thead>
-              <tr>
-                <th>Categoría</th>
-                <th>Descripción</th>
-                <th className="text-right">Cant.</th>
-                <th className="text-right">P. Unit.</th>
-                <th className="text-right">Subtotal</th>
-                {puede_editar && <th className="text-center">Acciones</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {conceptos.map((c) => (
-                <tr key={c.id} className={c.precio_unitario < 0 ? 'row-negativo' : ''}>
-                  <td>{c.categoria === 'Otros' ? c.categoria_otro || 'Otros' : c.categoria}</td>
-                  <td>{c.descripcion}</td>
-                  <td className="text-right">{c.cantidad}</td>
-                  <td className="text-right">{formatearMoneda(c.precio_unitario)}</td>
-                  <td className="text-right">{formatearMoneda(c.subtotal)}</td>
-                  {puede_editar && (
-                    <td className="text-center acciones-cell">
-                      <button onClick={() => handleEditarConcepto(c)} title="Editar">✏️</button>
-                      <button onClick={() => handleEliminarConcepto(c.id)} title="Eliminar">🗑️</button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={puede_editar ? 4 : 4} className="text-right"><strong>Total Conceptos:</strong></td>
-                <td className="text-right"><strong>{formatearMoneda(resumen.total_conceptos)}</strong></td>
-                {puede_editar && <td></td>}
-              </tr>
-            </tfoot>
-          </table>
+        {formItem === 'nuevo' && (
+          <FormItem data={data} onCancelar={() => setFormItem(null)} onGuardar={guardarItem} guardando={guardando} />
         )}
 
-        {/* Formulario Concepto */}
-        {showConceptoForm && (
-          <div className="form-inline">
-            <div className="form-row form-row-labels">
-              <div className="form-field">
-                <label>Categoría</label>
-                <select
-                  value={conceptoForm.categoria}
-                  onChange={(e) => setConceptoForm({ ...conceptoForm, categoria: e.target.value })}
-                >
-                  {CATEGORIAS.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-              {conceptoForm.categoria === 'Otros' && (
-                <div className="form-field">
-                  <label>Especificar</label>
-                  <input
-                    type="text"
-                    placeholder="Categoría"
-                    value={conceptoForm.categoria_otro}
-                    onChange={(e) => setConceptoForm({ ...conceptoForm, categoria_otro: e.target.value })}
-                  />
-                </div>
-              )}
-              <div className="form-field" style={{ flex: 2 }}>
-                <label>Descripción</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Menú principal"
-                  value={conceptoForm.descripcion}
-                  onChange={(e) => setConceptoForm({ ...conceptoForm, descripcion: e.target.value })}
-                />
-              </div>
-              <div className="form-field" style={{ width: '80px' }}>
-                <label>Cantidad</label>
-                <input
-                  type="text"
-                  placeholder="50"
-                  value={conceptoForm.cantidad || ''}
-                  onChange={(e) => {
-                    const valor = e.target.value.replace(/[^\d]/g, '');
-                    setConceptoForm({ ...conceptoForm, cantidad: parseInt(valor, 10) || 0 });
-                  }}
-                />
-              </div>
-              <div className="form-field" style={{ width: '120px' }}>
-                <label>Precio Unit.</label>
-                <input
-                  type="text"
-                  placeholder="10.000"
-                  value={getMontoFormateado(conceptoForm.precio_unitario)}
-                  onChange={(e) => handleMontoChange(e.target.value, setConceptoForm, 'precio_unitario')}
-                />
-              </div>
-            </div>
-            <div className="form-actions">
-              <button className="btn-guardar" onClick={handleGuardarConcepto} disabled={guardando}>
-                {guardando ? 'Guardando...' : (editingItem ? 'Actualizar' : 'Agregar')}
-              </button>
-              <button className="btn-cancelar" onClick={resetConceptoForm}>Cancelar</button>
-            </div>
+        {conceptos.length === 0 ? (
+          <p className="empty-message">
+            {data.catalogo.length ? 'Todavía no hay ítems. Agregá menú, barra y lo que corresponda.' : 'Todavía no hay ítems. Ojo: este local no tiene lista de precios cargada en el Catálogo.'}
+          </p>
+        ) : (
+          <div className="pc-tabla-wrap">
+            <table className="precheck-table pc-tabla-items">
+              <thead>
+                <tr>
+                  <th>Rubro</th>
+                  <th>Detalle</th>
+                  <th className="text-right">Cant.</th>
+                  <th className="text-right">P. unit.</th>
+                  <th className="text-right">Subtotal</th>
+                  {puede_editar && <th></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {conceptos.map((c) => (formItem?.id === c.id ? (
+                  <tr key={c.id}><td colSpan={puede_editar ? 6 : 5} className="pc-celda-form">
+                    <FormItem data={data} editando={c} onCancelar={() => setFormItem(null)} onGuardar={guardarItem} guardando={guardando} />
+                  </td></tr>
+                ) : (
+                  <tr key={c.id} className={`${c.precio_unitario < 0 ? 'row-negativo' : ''} ${c.es_ajuste_ipc ? 'pc-fila-ipc' : ''}`}>
+                    <td><span className="pc-rubro">{c.categoria === 'Otros' ? c.categoria_otro || 'Otros' : c.categoria}</span></td>
+                    <td>
+                      <div className="pc-desc">{c.descripcion}</div>
+                      {c.observaciones && <div className="pc-obs">{c.observaciones}</div>}
+                      {c.fuera_de_lista && (
+                        <span className="pc-marca" title="Lo aprueban Pilar o el Tano">
+                          {c.precio_unitario < 0 ? 'Descuento' : c.precio_lista === null ? 'Cargado a mano' : `Fuera de lista (lista ${pesos(c.precio_lista)})`}
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-right">{Number(c.cantidad).toLocaleString('es-AR')}</td>
+                    <td className="text-right pc-num">{pesos(c.precio_unitario)}</td>
+                    <td className="text-right pc-num">{pesos(c.subtotal)}</td>
+                    {puede_editar && (
+                      <td className="text-center acciones-cell">
+                        {(!c.es_ajuste_ipc || permisos.es_admin) && (
+                          <>
+                            <button onClick={() => setFormItem(c)} title="Editar" disabled={formItem !== null}>✏️</button>
+                            <button onClick={() => eliminarItem(c)} title="Eliminar">🗑️</button>
+                          </>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                )))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={4} className="text-right"><strong>Total contratado</strong></td>
+                  <td className="text-right pc-num"><strong>{pesos(resumen.total_conceptos)}</strong></td>
+                  {puede_editar && <td></td>}
+                </tr>
+              </tfoot>
+            </table>
           </div>
+        )}
+        {fueraDeLista > 0 && precheck.estado !== 'CERRADO' && (
+          <p className="pc-nota">{fueraDeLista} ítem(s) fuera de lista o con descuento: se aprueban al aprobar el pre-check.</p>
         )}
       </section>
 
-      {/* Sección Adicionales */}
+      {/* Adicionales */}
       <section className="precheck-section">
         <div className="section-header">
-          <h4>Adicionales</h4>
+          <h4>Adicionales del evento</h4>
           {puede_editar && (
-            <button
-              className="btn-agregar"
-              onClick={() => {
-                resetAdicionalForm();
-                setShowAdicionalForm(true);
-              }}
-            >
-              + Agregar
-            </button>
+            <button className="btn-agregar" onClick={() => { resetAdicionalForm(); setShowAdicionalForm(true); }}>+ Agregar</button>
           )}
         </div>
+        <p className="pc-nota pc-nota-arriba">Lo que se suma durante el evento. Se cobra al terminar (o se factura el día hábil siguiente) y no se ajusta por IPC.</p>
 
         {adicionales.length === 0 ? (
-          <p className="empty-message">No hay adicionales agregados</p>
+          <p className="empty-message">Sin adicionales</p>
         ) : (
-          <table className="precheck-table">
-            <thead>
-              <tr>
-                <th>Categoría</th>
-                <th>Descripción</th>
-                <th className="text-right">Monto</th>
-                {puede_editar && <th className="text-center">Acciones</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {adicionales.map((a) => (
-                <tr key={a.id} className={a.monto < 0 ? 'row-negativo' : ''}>
-                  <td>{a.categoria === 'Otros' ? a.categoria_otro || 'Otros' : a.categoria}</td>
-                  <td>{a.descripcion}</td>
-                  <td className="text-right">{formatearMoneda(a.monto)}</td>
-                  {puede_editar && (
-                    <td className="text-center acciones-cell">
-                      <button onClick={() => handleEditarAdicional(a)} title="Editar">✏️</button>
-                      <button onClick={() => handleEliminarAdicional(a.id)} title="Eliminar">🗑️</button>
-                    </td>
-                  )}
+          <div className="pc-tabla-wrap">
+            <table className="precheck-table">
+              <thead>
+                <tr>
+                  <th>Rubro</th>
+                  <th>Detalle</th>
+                  <th className="text-right">Monto</th>
+                  {puede_editar && <th></th>}
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={puede_editar ? 2 : 2} className="text-right"><strong>Total Adicionales:</strong></td>
-                <td className="text-right"><strong>{formatearMoneda(resumen.total_adicionales)}</strong></td>
-                {puede_editar && <td></td>}
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody>
+                {adicionales.map((a) => (
+                  <tr key={a.id} className={a.monto < 0 ? 'row-negativo' : ''}>
+                    <td><span className="pc-rubro">{a.categoria === 'Otros' ? a.categoria_otro || 'Otros' : a.categoria}</span></td>
+                    <td>
+                      <div className="pc-desc">{a.descripcion}</div>
+                      {a.observaciones && <div className="pc-obs">{a.observaciones}</div>}
+                    </td>
+                    <td className="text-right pc-num">{pesos(a.monto)}</td>
+                    {puede_editar && (
+                      <td className="text-center acciones-cell">
+                        <button onClick={() => handleEditarAdicional(a)} title="Editar">✏️</button>
+                        <button onClick={() => handleEliminarAdicional(a)} title="Eliminar">🗑️</button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={2} className="text-right"><strong>Total adicionales</strong></td>
+                  <td className="text-right pc-num"><strong>{pesos(resumen.total_adicionales)}</strong></td>
+                  {puede_editar && <td></td>}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         )}
 
-        {/* Formulario Adicional */}
         {showAdicionalForm && (
           <div className="form-inline">
             <div className="form-row form-row-labels">
               <div className="form-field">
-                <label>Categoría</label>
-                <select
-                  value={adicionalForm.categoria}
-                  onChange={(e) => setAdicionalForm({ ...adicionalForm, categoria: e.target.value })}
-                >
-                  {CATEGORIAS.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
+                <label>Rubro</label>
+                <select value={adicionalForm.categoria} onChange={(e) => setAdicionalForm({ ...adicionalForm, categoria: e.target.value })}>
+                  {[...data.categorias, ...(data.categorias.includes(adicionalForm.categoria) ? [] : [adicionalForm.categoria])].map((c) => <option key={c}>{c}</option>)}
                 </select>
               </div>
               {adicionalForm.categoria === 'Otros' && (
                 <div className="form-field">
-                  <label>Especificar</label>
-                  <input
-                    type="text"
-                    placeholder="Categoría"
-                    value={adicionalForm.categoria_otro}
-                    onChange={(e) => setAdicionalForm({ ...adicionalForm, categoria_otro: e.target.value })}
-                  />
+                  <label>¿Cuál?</label>
+                  <input type="text" value={adicionalForm.categoria_otro} onChange={(e) => setAdicionalForm({ ...adicionalForm, categoria_otro: e.target.value })} />
                 </div>
               )}
               <div className="form-field" style={{ flex: 2 }}>
                 <label>Descripción</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Decoración extra"
-                  value={adicionalForm.descripcion}
-                  onChange={(e) => setAdicionalForm({ ...adicionalForm, descripcion: e.target.value })}
-                />
+                <input type="text" placeholder="Ej.: 10 botellas de vino extra" value={adicionalForm.descripcion}
+                  onChange={(e) => setAdicionalForm({ ...adicionalForm, descripcion: e.target.value })} />
               </div>
-              <div className="form-field" style={{ width: '120px' }}>
+              <div className="form-field" style={{ width: 130 }}>
                 <label>Monto</label>
-                <input
-                  type="text"
-                  placeholder="50.000"
-                  value={getMontoFormateado(adicionalForm.monto)}
-                  onChange={(e) => handleMontoChange(e.target.value, setAdicionalForm, 'monto')}
-                />
+                <InputPesos value={adicionalForm.monto} permitirNegativo onChange={(v) => setAdicionalForm({ ...adicionalForm, monto: v })} />
+              </div>
+            </div>
+            <div className="form-row form-row-labels">
+              <div className="form-field" style={{ flex: 1 }}>
+                <label>Observaciones</label>
+                <input type="text" value={adicionalForm.observaciones} onChange={(e) => setAdicionalForm({ ...adicionalForm, observaciones: e.target.value })} />
               </div>
             </div>
             <div className="form-actions">
-              <button className="btn-guardar" onClick={handleGuardarAdicional} disabled={guardando}>
-                {guardando ? 'Guardando...' : (editingItem ? 'Actualizar' : 'Agregar')}
-              </button>
+              <button className="btn-guardar" onClick={handleGuardarAdicional} disabled={guardando}>{guardando ? 'Guardando…' : (editingItem ? 'Actualizar' : 'Agregar')}</button>
               <button className="btn-cancelar" onClick={resetAdicionalForm}>Cancelar</button>
             </div>
           </div>
         )}
       </section>
 
-      {/* Resumen de Totales */}
+      {/* Totales */}
       <section className="precheck-totales">
-        <div className="totales-row">
-          <span>Subtotal:</span>
-          <span>{formatearMoneda(resumen.subtotal)}</span>
-        </div>
-        {precheck.facturada && (
-          <div className="totales-row iva">
-            <span>IVA (21%):</span>
-            <span>{formatearMoneda(resumen.iva)}</span>
-          </div>
+        <div className="totales-row"><span>Subtotal</span><span>{pesos(resumen.subtotal)}</span></div>
+        {data.facturada && <div className="totales-row iva"><span>IVA 21%</span><span>{pesos(resumen.iva)}</span></div>}
+        {resumen.propina > 0 && <div className="totales-row iva"><span>Propina ({resumen.propina_porcentaje}%)</span><span>{pesos(resumen.propina)}</span></div>}
+        <div className="totales-row total"><span>TOTAL</span><span>{pesos(resumen.total)}</span></div>
+        {precheck.estado === 'CERRADO' && precheck.monto_final !== null && (
+          <div className="totales-row iva"><span>Total final al cierre</span><span>{pesos(precheck.monto_final)}</span></div>
         )}
-        <div className="totales-row total">
-          <span>TOTAL:</span>
-          <span>{formatearMoneda(resumen.total)}</span>
-        </div>
       </section>
 
-      {/* Sección Pagos */}
+      {/* Plan de pagos */}
+      {resumen.tiene_items && (
+        <section className="precheck-section">
+          <div className="section-header">
+            <h4>Plan de pagos</h4>
+            <button className="btn-agregar secundario" onClick={verIpc}>Ajuste por IPC</button>
+          </div>
+          <div className="pc-tabla-wrap">
+            <table className="precheck-table">
+              <thead>
+                <tr>
+                  <th>Concepto</th>
+                  <th>Vence</th>
+                  <th className="text-right">Monto</th>
+                  <th className="text-right">Pagado</th>
+                  <th className="text-right">Falta</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumen.plan_pagos.filter((p) => p.monto).map((p) => (
+                  <tr key={p.concepto}>
+                    <td>{p.concepto}</td>
+                    <td>{p.vence ? fechaCorta(p.vence) : 'Al confirmar'}</td>
+                    <td className="text-right pc-num">{pesos(p.monto)}</td>
+                    <td className="text-right pc-num">{pesos(p.pagado)}</td>
+                    <td className="text-right pc-num">{p.falta ? pesos(p.falta) : '—'}</td>
+                    <td><span className={`pc-cuota pc-cuota-${p.estado.toLowerCase()}`}>{ESTADO_CUOTA[p.estado] || p.estado}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="pc-nota">Solo cuentan los pagos validados por tesorería.{resumen.en_revision > 0 && ` Hay ${pesos(resumen.en_revision)} esperando validación.`}</p>
+
+          {ipc && (
+            <div className="pc-ipc">
+              <button className="pc-ipc-cerrar" onClick={() => setIpc(null)} aria-label="Cerrar">&times;</button>
+              <h5>Ajuste por IPC (INDEC)</h5>
+              {ipc.aplica ? (
+                <>
+                  <p>
+                    {ipc.es_continuacion ? 'Desde el último ajuste' : 'Desde la seña'} ({ipc.periodo_base}) hasta el último IPC publicado ({ipc.periodo_final}):{' '}
+                    <strong>+{ipc.variacion_pct.toLocaleString('es-AR')}%</strong>
+                  </p>
+                  <p>Sobre el saldo pendiente de lo contratado ({pesos(ipc.monto_base)}, sin IVA ni propina, sin la seña ni adicionales):{' '}
+                    <strong>{pesos(ipc.ajuste)}</strong> más IVA/propina si corresponden.</p>
+                  {permisos.puede_aplicar_ipc ? (
+                    <button className="pc-btn primario" onClick={aplicarIpc} disabled={guardando}>Aplicar ajuste</button>
+                  ) : (
+                    <p className="pc-nota">El ajuste lo aplica administración.</p>
+                  )}
+                </>
+              ) : (
+                <p>{ipc.motivo}</p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Pagos */}
       <section className="precheck-section pagos-section">
         <div className="section-header">
-          <h4>Pagos Recibidos</h4>
+          <h4>Pagos recibidos</h4>
           {puede_editar_pagos && (
-            <button
-              className="btn-agregar"
-              onClick={() => {
-                resetPagoForm();
-                setShowPagoForm(true);
-              }}
-            >
-              + Agregar Pago
-            </button>
+            <button className="btn-agregar" onClick={() => { resetPagoForm(); setShowPagoForm(true); }}>+ Agregar pago</button>
           )}
         </div>
 
         {pagos.length === 0 ? (
           <p className="empty-message">No hay pagos registrados</p>
         ) : (
-          <table className="precheck-table pagos-table">
-            <thead>
-              <tr>
-                <th>F. Depósito</th>
-                <th>F. Acreditación</th>
-                <th>Método</th>
-                <th className="text-right">Monto</th>
-                <th>Estado</th>
-                <th>Comprobante</th>
-                <th>Notas</th>
-                {puede_editar_pagos && <th className="text-center">Acciones</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {pagos.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.fecha_deposito ? new Date(p.fecha_deposito).toLocaleDateString('es-AR') : '-'}</td>
-                  <td>{p.fecha_acreditacion ? new Date(p.fecha_acreditacion).toLocaleDateString('es-AR') : '-'}</td>
-                  <td>{p.metodo_pago}</td>
-                  <td className="text-right">
-                    {p.monto_original ? (
-                      <div>
-                        <div>{formatearMoneda(p.monto)}</div>
-                        <div style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: '11px' }}>{formatearMoneda(p.monto_original)}</div>
-                        {p.observacion_monto && <div style={{ fontSize: '10px', color: '#6b7280', fontStyle: 'italic' }}>{p.observacion_monto}</div>}
-                      </div>
-                    ) : formatearMoneda(p.monto)}
-                  </td>
-                  <td>
-                    <span className={`pago-estado-badge pago-estado-${(p.estado || 'VALIDADO').toLowerCase()}`}>
-                      {p.estado === 'REVISION' ? 'En revisión' : p.estado === 'VALIDADO' ? 'Validado' : p.estado === 'RECHAZADO' ? 'Rechazado' : 'Validado'}
-                    </span>
-                    {p.estado === 'VALIDADO' && p.numero_oppen && (
-                      <div style={{ fontSize: '10px', color: '#059669', marginTop: '2px' }}>Oppen: {p.numero_oppen}</div>
-                    )}
-                    {p.estado === 'RECHAZADO' && p.motivo_rechazo && (
-                      <div style={{ fontSize: '10px', color: '#dc2626', marginTop: '2px' }}>{p.motivo_rechazo}</div>
-                    )}
-                  </td>
-                  <td>
-                    {p.comprobante_url ? (
-                      <div className="comprobante-cell-view">
-                        {/\.(jpg|jpeg|png|gif|webp)/i.test(p.comprobante_nombre || p.comprobante_url.split('?')[0]) ? (
-                          <img
-                            src={p.comprobante_url}
-                            alt="Comprobante"
-                            className="comprobante-thumb"
-                            onClick={() => setLightboxUrl(p.comprobante_url)}
-                          />
-                        ) : (
-                          <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" className="comprobante-link">
-                            📎 {p.comprobante_nombre || 'Ver PDF'}
-                          </a>
-                        )}
-                      </div>
-                    ) : puede_editar_pagos && p.estado === 'REVISION' ? (
-                      <label className="upload-label">
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={(e) => {
-                            if (e.target.files[0]) {
-                              handleSubirComprobante(p.id, e.target.files[0]);
-                            }
-                          }}
-                          style={{ display: 'none' }}
-                        />
-                        <span className="upload-btn">📤 Subir</span>
-                      </label>
-                    ) : (
-                      <span className="sin-comprobante">-</span>
-                    )}
-                  </td>
-                  <td className="notas-cell">{p.notas || '-'}</td>
-                  {puede_editar_pagos && (
-                    <td className="text-center acciones-cell">
-                      {p.estado === 'REVISION' ? (
-                        <>
-                          <button onClick={() => handleEditarPago(p)} title="Editar">✏️</button>
-                          <button onClick={() => handleEliminarPago(p.id)} title="Eliminar">🗑️</button>
-                        </>
-                      ) : (
-                        <span style={{ color: '#d1d5db', fontSize: '11px' }}>—</span>
-                      )}
-                    </td>
-                  )}
+          <div className="pc-tabla-wrap">
+            <table className="precheck-table pagos-table">
+              <thead>
+                <tr>
+                  <th>F. depósito</th>
+                  <th>F. acreditación</th>
+                  <th>Método</th>
+                  <th className="text-right">Monto</th>
+                  <th>Estado</th>
+                  <th>Comprobante</th>
+                  <th>Notas</th>
+                  {puede_editar_pagos && <th className="text-center"></th>}
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={3} className="text-right"><strong>Total Pagado:</strong></td>
-                <td className="text-right"><strong>{formatearMoneda(resumen.total_pagado)}</strong></td>
-                <td colSpan={puede_editar_pagos ? 4 : 3}></td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody>
+                {pagos.map((p) => (
+                  <tr key={p.id}>
+                    <td>{fechaCorta(p.fecha_deposito)}</td>
+                    <td>{fechaCorta(p.fecha_acreditacion)}</td>
+                    <td>{p.metodo_pago}</td>
+                    <td className="text-right pc-num">
+                      {p.monto_original ? (
+                        <div>
+                          <div>{pesos(p.monto)}</div>
+                          <div className="pc-tachado">{pesos(p.monto_original)}</div>
+                          {p.observacion_monto && <div className="pc-obs">{p.observacion_monto}</div>}
+                        </div>
+                      ) : pesos(p.monto)}
+                    </td>
+                    <td>
+                      <span className={`pago-estado-badge pago-estado-${(p.estado || 'VALIDADO').toLowerCase()}`}>
+                        {p.estado === 'REVISION' ? 'En revisión' : p.estado === 'RECHAZADO' ? 'Rechazado' : 'Validado'}
+                      </span>
+                      {p.estado === 'VALIDADO' && p.numero_oppen && <div className="pc-oppen">Oppen: {p.numero_oppen}</div>}
+                      {p.estado === 'RECHAZADO' && p.motivo_rechazo && <div className="pc-rechazo">{p.motivo_rechazo}</div>}
+                    </td>
+                    <td>
+                      {p.comprobante_url ? (
+                        <div className="comprobante-cell-view">
+                          {/\.(jpg|jpeg|png|gif|webp)/i.test(p.comprobante_nombre || p.comprobante_url.split('?')[0]) ? (
+                            <img src={p.comprobante_url} alt="Comprobante" className="comprobante-thumb" onClick={() => setLightboxUrl(p.comprobante_url)} />
+                          ) : (
+                            <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" className="comprobante-link">📎 {p.comprobante_nombre || 'Ver PDF'}</a>
+                          )}
+                        </div>
+                      ) : puede_editar_pagos && p.estado === 'REVISION' ? (
+                        <label className="upload-label">
+                          <input type="file" accept="image/*,.pdf" style={{ display: 'none' }}
+                            onChange={(e) => e.target.files[0] && handleSubirComprobante(p.id, e.target.files[0])} />
+                          <span className="upload-btn">📤 Subir</span>
+                        </label>
+                      ) : <span className="sin-comprobante">-</span>}
+                    </td>
+                    <td className="notas-cell">{p.notas || '-'}</td>
+                    {puede_editar_pagos && (
+                      <td className="text-center acciones-cell">
+                        {p.estado === 'REVISION' ? (
+                          <>
+                            <button onClick={() => handleEditarPago(p)} title="Editar">✏️</button>
+                            <button onClick={() => handleEliminarPago(p.id)} title="Eliminar">🗑️</button>
+                          </>
+                        ) : <span className="pc-guion">—</span>}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={3} className="text-right"><strong>Total validado</strong></td>
+                  <td className="text-right pc-num"><strong>{pesos(resumen.total_pagado)}</strong></td>
+                  <td colSpan={puede_editar_pagos ? 4 : 3}></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         )}
 
-        {/* Formulario Pago */}
         {showPagoForm && (
           <div className="form-inline">
             <div className="form-row form-row-labels">
               <div className="form-field">
                 <label>Fecha depósito *</label>
-                <input
-                  type="date"
-                  value={pagoForm.fecha_deposito}
-                  onChange={(e) => setPagoForm({ ...pagoForm, fecha_deposito: e.target.value })}
-                  required
-                />
+                <input type="date" value={pagoForm.fecha_deposito} onChange={(e) => setPagoForm({ ...pagoForm, fecha_deposito: e.target.value })} required />
               </div>
               <div className="form-field">
                 <label>Fecha acreditación *</label>
-                <input
-                  type="date"
-                  value={pagoForm.fecha_acreditacion}
-                  onChange={(e) => setPagoForm({ ...pagoForm, fecha_acreditacion: e.target.value })}
-                  required
-                />
+                <input type="date" value={pagoForm.fecha_acreditacion} onChange={(e) => setPagoForm({ ...pagoForm, fecha_acreditacion: e.target.value })} required />
               </div>
               <div className="form-field">
                 <label>Método</label>
-                <select
-                  value={pagoForm.metodo_pago}
-                  onChange={(e) => setPagoForm({ ...pagoForm, metodo_pago: e.target.value })}
-                >
-                  {METODOS_PAGO.map((metodo) => (
-                    <option key={metodo} value={metodo}>{metodo}</option>
-                  ))}
+                <select value={pagoForm.metodo_pago} onChange={(e) => setPagoForm({ ...pagoForm, metodo_pago: e.target.value })}>
+                  {METODOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
-              <div className="form-field" style={{ width: '120px' }}>
+              <div className="form-field" style={{ width: 130 }}>
                 <label>Monto</label>
-                <input
-                  type="text"
-                  placeholder="100.000"
-                  value={getMontoFormateado(pagoForm.monto)}
-                  onChange={(e) => handleMontoChange(e.target.value, setPagoForm, 'monto')}
-                />
+                <InputPesos value={pagoForm.monto} placeholder="100.000" onChange={(v) => setPagoForm({ ...pagoForm, monto: v })} />
               </div>
               <div className="form-field" style={{ flex: 1 }}>
                 <label>Notas</label>
-                <input
-                  type="text"
-                  placeholder="Opcional"
-                  value={pagoForm.notas}
-                  onChange={(e) => setPagoForm({ ...pagoForm, notas: e.target.value })}
-                />
+                <input type="text" placeholder="Opcional" value={pagoForm.notas} onChange={(e) => setPagoForm({ ...pagoForm, notas: e.target.value })} />
               </div>
             </div>
             <div className="form-row" style={{ marginTop: '8px', alignItems: 'center', gap: '12px' }}>
               <div className="form-field">
                 <label>Comprobante {!editingItem && '*'}</label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
+                <input type="file" accept="image/*,.pdf" className="file-input-pago"
                   onChange={(e) => {
                     const file = e.target.files[0] || null;
                     setComprobanteFile(file);
-                    if (file && file.type.startsWith('image/')) {
-                      const url = URL.createObjectURL(file);
-                      setComprobantePreview(url);
-                    } else {
-                      setComprobantePreview(null);
-                    }
-                  }}
-                  className="file-input-pago"
-                />
+                    setComprobantePreview(file && file.type.startsWith('image/') ? URL.createObjectURL(file) : null);
+                  }} />
               </div>
               {comprobanteFile && (
                 <div className="comprobante-preview-container">
                   {comprobantePreview ? (
-                    <img
-                      src={comprobantePreview}
-                      alt="Preview"
-                      className="comprobante-preview-thumb"
-                      onClick={() => setLightboxUrl(comprobantePreview)}
-                    />
-                  ) : (
-                    <span className="comprobante-preview-file">
-                      PDF: {comprobanteFile.name}
-                    </span>
-                  )}
+                    <img src={comprobantePreview} alt="Preview" className="comprobante-preview-thumb" onClick={() => setLightboxUrl(comprobantePreview)} />
+                  ) : <span className="comprobante-preview-file">PDF: {comprobanteFile.name}</span>}
                 </div>
               )}
             </div>
             <div className="form-actions">
-              <button className="btn-guardar" onClick={handleGuardarPago} disabled={guardando}>
-                {guardando ? 'Guardando...' : (editingItem ? 'Actualizar' : 'Agregar')}
-              </button>
+              <button className="btn-guardar" onClick={handleGuardarPago} disabled={guardando}>{guardando ? 'Guardando…' : (editingItem ? 'Actualizar' : 'Agregar')}</button>
               <button className="btn-cancelar" onClick={resetPagoForm}>Cancelar</button>
             </div>
           </div>
         )}
       </section>
 
-      {/* Saldo Pendiente */}
+      {/* Saldo */}
       <section className={`precheck-pendiente ${resumen.pendiente <= 0 ? 'saldado' : 'pendiente'}`}>
         <div className="pendiente-row">
           <span>{resumen.pendiente <= 0 ? 'SALDADO' : 'SALDO PENDIENTE:'}</span>
-          <span>{formatearMoneda(Math.abs(resumen.pendiente))}</span>
+          <span>{pesos(Math.abs(resumen.pendiente))}</span>
         </div>
       </section>
 
-      {/* Lightbox para ver comprobantes */}
+      {/* Historial */}
+      <section className="precheck-section pc-historial">
+        <button className="pc-historial-toggle" onClick={() => setVerHistorial(!verHistorial)}>
+          {verHistorial ? '▾' : '▸'} Historial de cambios ({historial.length})
+        </button>
+        {verHistorial && (
+          historial.length === 0 ? <p className="empty-message">Sin cambios registrados todavía.</p> : (
+            <ol className="pc-historial-lista">
+              {historial.map((h) => (
+                <li key={h.id}>
+                  <span className="pc-hist-fecha">{fechaHora(h.created_at)}</span>
+                  <span className="pc-hist-quien">{h.usuario}</span>
+                  <span className="pc-hist-que">
+                    <span className="pc-hist-accion">{h.accion}</span>
+                    {h.detalle && <span className="pc-hist-detalle">{h.detalle}</span>}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )
+        )}
+      </section>
+
       {lightboxUrl && (
         <div className="comprobante-lightbox" onClick={() => setLightboxUrl(null)}>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
             <button className="lightbox-close" onClick={() => setLightboxUrl(null)}>&times;</button>
             <img src={lightboxUrl} alt="Comprobante" className="lightbox-img" />
-            <a
-              href={lightboxUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="lightbox-open-new"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <a href={lightboxUrl} target="_blank" rel="noopener noreferrer" className="lightbox-open-new" onClick={(e) => e.stopPropagation()}>
               Abrir en nueva pestaña
             </a>
           </div>

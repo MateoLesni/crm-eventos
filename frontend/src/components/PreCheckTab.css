@@ -665,3 +665,452 @@
     max-width: 80px;
   }
 }
+
+/* ==================== Pre-check v2 ==================== */
+
+.pc-estado-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--papel, #fff);
+  border: 1px solid var(--linea, #d8dad1);
+  border-radius: 10px;
+}
+
+.pc-estado-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pc-estado {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pc-estado-borrador { background: var(--lino-oscuro, #e1e3da); color: var(--tinta-suave, #5c6359); }
+.pc-estado-revision { background: var(--laton-suave, #f3ebd9); color: var(--laton, #8a6823); }
+.pc-estado-aprobado { background: var(--botella-suave, #e3ece6); color: var(--botella, #17382d); }
+.pc-estado-cerrado { background: var(--botella, #17382d); color: #fff; }
+.pc-estado-cambio { background: var(--vino-suave, #f7e9ee); color: var(--vino, #8c2443); }
+
+.pc-estado-ayuda {
+  font-size: 12px;
+  color: var(--tinta-suave, #5c6359);
+}
+
+.pc-estado-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.pc-btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  background: var(--papel, #fff);
+  color: var(--tinta, #1e2722);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pc-btn.primario {
+  background: var(--botella, #17382d);
+  border-color: var(--botella, #17382d);
+  color: #fff;
+}
+
+.pc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pc-solo-lectura {
+  font-size: 12px;
+  color: var(--tinta-suave, #5c6359);
+  background: var(--lino-oscuro, #e1e3da);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.pc-alertas {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.pc-alerta {
+  font-size: 12.5px;
+  padding: 7px 12px 7px 26px;
+  border-radius: 8px;
+  position: relative;
+  line-height: 1.4;
+}
+
+.pc-alerta::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 12px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.pc-alerta-error { background: #f8e6e5; color: #7d1f1c; }
+.pc-alerta-error::before { background: var(--critico, #b4322e); }
+.pc-alerta-aviso { background: var(--laton-suave, #f3ebd9); color: #5e4a1a; }
+.pc-alerta-aviso::before { background: var(--alerta, #d9a21b); }
+.pc-alerta-info { background: var(--botella-suave, #e3ece6); color: var(--botella, #17382d); }
+.pc-alerta-info::before { background: var(--botella, #17382d); }
+
+.pc-datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: var(--lino, #ecede7);
+  border-radius: 10px;
+}
+
+.pc-dato {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pc-dato-ancho {
+  grid-column: span 2;
+}
+
+.pc-dato > span:first-child {
+  font-size: 11px;
+  color: var(--tinta-suave, #5c6359);
+}
+
+.pc-dato strong {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pc-dato select,
+.pc-dato input {
+  height: 32px;
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  background: var(--papel, #fff);
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pc-dato .toggle-switch input {
+  width: 0;
+  height: 0;
+}
+
+.pc-pct {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.pc-pct input {
+  width: 64px;
+  text-align: right;
+}
+
+.pc-header-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.precheck-container .btn-agregar.secundario {
+  background-color: var(--papel, #fff);
+  color: var(--botella, #17382d);
+  border: 1px solid var(--botella, #17382d);
+}
+
+.precheck-container .btn-agregar.secundario:hover {
+  background-color: var(--botella-suave, #e3ece6);
+}
+
+.btn-agregar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pc-tabla-wrap {
+  overflow-x: auto;
+}
+
+.pc-rubro {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--botella-suave, #e3ece6);
+  color: var(--botella, #17382d);
+  white-space: nowrap;
+}
+
+.pc-desc {
+  font-weight: 600;
+}
+
+.pc-obs {
+  font-size: 12px;
+  color: var(--tinta-suave, #5c6359);
+  margin-top: 2px;
+  white-space: pre-wrap;
+}
+
+.pc-marca {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--vino-suave, #f7e9ee);
+  color: var(--vino, #8c2443);
+}
+
+.pc-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pc-fila-ipc td {
+  background: #fbf8f0;
+}
+
+.pc-celda-form {
+  padding: 0 !important;
+}
+
+.pc-nota {
+  font-size: 12px;
+  color: var(--tinta-suave, #5c6359);
+  margin: 8px 0 0;
+}
+
+.pc-nota-arriba {
+  margin: -4px 0 8px;
+}
+
+.pc-form {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.pc-modo {
+  display: inline-flex;
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.pc-modo button {
+  border: none;
+  background: var(--papel, #fff);
+  padding: 6px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  color: var(--tinta-suave, #5c6359);
+}
+
+.pc-modo button.activo {
+  background: var(--botella, #17382d);
+  color: #fff;
+}
+
+.pc-modo button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pc-form .form-row + .form-row {
+  margin-top: 8px;
+}
+
+.pc-form-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.pc-form-pie .form-actions {
+  margin: 0 0 0 auto;
+}
+
+.pc-form-subtotal {
+  font-size: 13px;
+}
+
+.pc-aviso-lista {
+  font-size: 12px;
+  color: var(--vino, #8c2443);
+}
+
+.pc-cuota {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pc-cuota-pagado { background: var(--botella-suave, #e3ece6); color: var(--dinero, #23704a); }
+.pc-cuota-parcial { background: var(--laton-suave, #f3ebd9); color: var(--laton, #8a6823); }
+.pc-cuota-pendiente { background: var(--lino-oscuro, #e1e3da); color: var(--tinta-suave, #5c6359); }
+.pc-cuota-vencido { background: #f8e6e5; color: var(--critico, #b4322e); }
+
+.pc-ipc {
+  position: relative;
+  margin-top: 12px;
+  padding: 12px 36px 12px 14px;
+  border: 1px solid #e4d3ad;
+  background: #fbf8f0;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pc-ipc h5 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--laton, #8a6823);
+}
+
+.pc-ipc p {
+  margin: 0 0 8px;
+}
+
+.pc-ipc-cerrar {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: none;
+  background: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--tinta-suave, #5c6359);
+}
+
+.pc-tachado {
+  text-decoration: line-through;
+  color: var(--tinta-tenue, #8d9288);
+  font-size: 11px;
+}
+
+.pc-oppen {
+  font-size: 10px;
+  color: var(--dinero, #23704a);
+  margin-top: 2px;
+}
+
+.pc-rechazo {
+  font-size: 10px;
+  color: var(--critico, #b4322e);
+  margin-top: 2px;
+}
+
+.pc-guion {
+  color: var(--linea-fuerte, #b9bcb0);
+  font-size: 11px;
+}
+
+.pc-historial-toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--botella, #17382d);
+  cursor: pointer;
+}
+
+.pc-historial-lista {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  font-size: 12.5px;
+}
+
+.pc-historial-lista li {
+  display: grid;
+  grid-template-columns: 128px 140px 1fr;
+  gap: 2px 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid #eef0ea;
+  align-items: baseline;
+}
+
+.pc-hist-que {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pc-hist-fecha {
+  color: var(--tinta-tenue, #8d9288);
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-hist-quien {
+  font-weight: 600;
+}
+
+.pc-hist-accion {
+  font-weight: 600;
+}
+
+.pc-hist-detalle {
+  color: var(--tinta-suave, #5c6359);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .pc-dato-ancho {
+    grid-column: 1 / -1;
+  }
+
+  .pc-historial-lista li {
+    grid-template-columns: 1fr;
+  }
+
+  .pc-form-pie .form-actions {
+    margin-left: 0;
+  }
+}
