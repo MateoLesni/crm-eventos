@@ -19,7 +19,7 @@ from flask import Blueprint, g, jsonify, request
 from app import db
 from app.models import Local
 from app.models_precheck import (
-    CATEGORIAS_PRECHECK, MODALIDADES, CatalogoItem, LocalSector, PrecheckConfig, leer_config,
+    CATEGORIAS_PRECHECK, MODALIDADES, CatalogoItem, LocalSector, PrecheckConfig, PrecheckHistorial, leer_config,
 )
 from app.utils.precheck_calculo import ordenar_catalogo
 from app.utils.seguridad import admin_requerido, login_requerido
@@ -245,9 +245,13 @@ def _config_respuesta():
     return {
         'sena_porcentaje': float(valores.get('sena_porcentaje') or 50),
         'dias_saldo_antes_evento': int(float(valores.get('dias_saldo_antes_evento') or 7)),
+        'iva_porcentaje': float(valores.get('iva_porcentaje') or 21),
+        'ipc_activo_por_defecto': str(valores.get('ipc_activo_por_defecto') or '0') in ('1', 'true'),
         'condiciones': valores.get('condiciones') or '',
         'propinas': [{'local_id': l.id, 'local': l.nombre,
                       'porcentaje': float(valores.get(f'propina_local_{l.id}') or 0)} for l in locales],
+        'historial': [h.to_dict() for h in PrecheckHistorial.query.filter(PrecheckHistorial.evento_id.is_(None))
+                      .order_by(PrecheckHistorial.created_at.desc(), PrecheckHistorial.id.desc()).limit(50).all()],
     }
 
 
@@ -257,40 +261,79 @@ def obtener_config():
     return jsonify(_config_respuesta()), 200
 
 
-def _guardar(clave, valor):
+ETIQUETAS = {
+    'sena_porcentaje': ('Seña', '%'),
+    'dias_saldo_antes_evento': ('Vencimiento del saldo', ' días antes'),
+    'iva_porcentaje': ('IVA', '%'),
+    'ipc_activo_por_defecto': ('IPC activado por defecto', ''),
+    'condiciones': ('Condiciones y políticas de pago', ''),
+}
+
+
+def _guardar(clave, valor, cambios):
+    """Guarda el valor y anota el cambio (antes → después) para el historial."""
     fila = db.session.get(PrecheckConfig, clave)
+    anterior = fila.valor if fila is not None else None
+    if anterior is None:
+        anterior = leer_config().get(clave)
+    if str(anterior if anterior is not None else '') == str(valor):
+        return
     if fila is None:
         fila = PrecheckConfig(clave=clave)
         db.session.add(fila)
     fila.valor = valor
     fila.updated_by_id = g.usuario.id
+    if clave.startswith('propina_local_'):
+        local = db.session.get(Local, int(clave.rsplit('_', 1)[1]))
+        cambios.append(f"Propina {local.nombre if local else clave}: {anterior or 0}% → {valor}%")
+    elif clave == 'condiciones':
+        cambios.append('Modificó el texto de condiciones')
+    elif clave == 'ipc_activo_por_defecto':
+        cambios.append('IPC activado por defecto: ' + ('sí' if valor == '1' else 'no'))
+    else:
+        nombre, sufijo = ETIQUETAS.get(clave, (clave, ''))
+        cambios.append(f'{nombre}: {anterior}{sufijo} → {valor}{sufijo}')
 
 
 @catalogo_bp.route('/config', methods=['PUT'])
 @admin_requerido
 def actualizar_config():
     data = request.get_json(silent=True) or {}
+    cambios = []
+
+    def numero_limpio(n):
+        return format(n.normalize(), 'f')
+
     try:
         if 'sena_porcentaje' in data:
-            _guardar('sena_porcentaje', str(_decimal(data['sena_porcentaje'], 'Seña', minimo=0, maximo=100)))
+            _guardar('sena_porcentaje', numero_limpio(_decimal(data['sena_porcentaje'], 'Seña', minimo=0, maximo=100)), cambios)
         if 'dias_saldo_antes_evento' in data:
             dias = _entero(data['dias_saldo_antes_evento'], 'Días', opcional=False)
             if dias > 90:
                 raise ValueError('Días: máximo 90')
-            _guardar('dias_saldo_antes_evento', str(dias))
+            _guardar('dias_saldo_antes_evento', str(dias), cambios)
+        if 'iva_porcentaje' in data:
+            _guardar('iva_porcentaje', numero_limpio(_decimal(data['iva_porcentaje'], 'IVA', minimo=0, maximo=50)), cambios)
+        if 'ipc_activo_por_defecto' in data:
+            _guardar('ipc_activo_por_defecto', '1' if data['ipc_activo_por_defecto'] else '0', cambios)
         if 'condiciones' in data:
             texto = (data['condiciones'] or '').strip()
             if len(texto) > 20000:
                 raise ValueError('El texto de condiciones es demasiado largo')
-            _guardar('condiciones', texto)
+            _guardar('condiciones', texto, cambios)
         for p in data.get('propinas') or []:
             local_id = _local_valido(p.get('local_id'))
             if not local_id:
                 raise ValueError('Local inválido en propinas')
-            _guardar(f'propina_local_{local_id}', str(_decimal(p.get('porcentaje') or 0, 'Propina', minimo=0, maximo=30)))
+            _guardar(f'propina_local_{local_id}',
+                     numero_limpio(_decimal(p.get('porcentaje') or 0, 'Propina', minimo=0, maximo=30)), cambios)
     except ValueError as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
+    if cambios:
+        motivo = (data.get('motivo') or '').strip()
+        db.session.add(PrecheckHistorial(evento_id=None, usuario_id=g.usuario.id, accion='Configuración general',
+                                         detalle='; '.join(cambios) + (f'. Motivo: {motivo}' if motivo else '')))
     db.session.commit()
     return jsonify(_config_respuesta()), 200
 

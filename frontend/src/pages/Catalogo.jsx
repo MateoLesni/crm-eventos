@@ -378,6 +378,7 @@ function Parametros() {
   const [cfg, setCfg] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
+  const [motivo, setMotivo] = useState('');
 
   useEffect(() => {
     catalogoApi.config().then((r) => setCfg(r.data)).catch(() => setCfg(false));
@@ -386,8 +387,10 @@ function Parametros() {
   const guardar = async () => {
     setGuardando(true);
     try {
-      const r = await catalogoApi.guardarConfig(cfg);
+      const { historial: _h, ...datos } = cfg;
+      const r = await catalogoApi.guardarConfig({ ...datos, motivo });
       setCfg(r.data);
+      setMotivo('');
       setGuardado(true);
       setTimeout(() => setGuardado(false), 2500);
     } catch (err) {
@@ -413,7 +416,20 @@ function Parametros() {
             <input className="cat-num" inputMode="numeric" value={cfg.dias_saldo_antes_evento}
               onChange={(e) => setCfg({ ...cfg, dias_saldo_antes_evento: e.target.value.replace(/\D/g, '') })} />
           </label>
-          <p className="cat-ayuda">El ajuste por IPC se suma al saldo, nunca a la seña.</p>
+          <label>IVA (cuando se factura)
+            <span className="cat-pct">
+              <input className="cat-num" inputMode="decimal" value={cfg.iva_porcentaje}
+                onChange={(e) => setCfg({ ...cfg, iva_porcentaje: e.target.value.replace(/[^\d.]/g, '') })} />%
+            </span>
+          </label>
+          <label>Ajuste por IPC activado en los pre-checks nuevos
+            <input type="checkbox" className="cat-check-input" checked={!!cfg.ipc_activo_por_defecto}
+              onChange={(e) => setCfg({ ...cfg, ipc_activo_por_defecto: e.target.checked })} />
+          </label>
+          <p className="cat-ayuda">
+            Son los valores generales. En cada evento, administración puede fijar otra seña, otro vencimiento
+            y activar o no el IPC, siempre con motivo. El ajuste por IPC se suma al saldo, nunca a la seña.
+          </p>
         </div>
         <div className="cat-tarjeta">
           <h3>Propina por local</h3>
@@ -442,8 +458,24 @@ function Parametros() {
       </div>
       <div className="cat-guardar">
         {guardado && <span className="cat-ok">Guardado</span>}
+        <input className="cat-motivo" placeholder="Motivo del cambio (opcional, queda en el historial)" value={motivo}
+          onChange={(e) => setMotivo(e.target.value)} />
         <button className="cat-btn primario" onClick={guardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar cambios'}</button>
       </div>
+      {cfg.historial?.length > 0 && (
+        <div className="cat-tarjeta">
+          <h3>Historial de cambios</h3>
+          <ol className="cat-historial">
+            {cfg.historial.map((h) => (
+              <li key={h.id}>
+                <span className="cat-hist-fecha">{new Date(h.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', hour12: false })}</span>
+                <span className="cat-hist-quien">{h.usuario}</span>
+                <span>{h.detalle}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </section>
   );
 }

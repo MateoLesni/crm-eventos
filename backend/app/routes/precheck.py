@@ -69,7 +69,8 @@ def obtener_o_crear_precheck(evento):
     if pc is None:
         config = leer_config()
         propina = config.get(f'propina_local_{evento.local_id}') or '0'
-        pc = Precheck(evento_id=evento.id, estado='BORRADOR', propina_porcentaje=Decimal(str(propina)))
+        pc = Precheck(evento_id=evento.id, estado='BORRADOR', propina_porcentaje=Decimal(str(propina)),
+                      ipc_activo=str(config.get('ipc_activo_por_defecto') or '0') in ('1', 'true'))
         db.session.add(pc)
         evento.precheck = pc
     return pc
@@ -169,6 +170,8 @@ def obtener_precheck(current_user, evento_id):
     cabecera = evento.precheck.to_dict() if evento.precheck else {
         'sector_id': None, 'sector': None, 'motivo': None, 'razon_social': None,
         'propina_porcentaje': float(config.get(f'propina_local_{evento.local_id}') or 0),
+        'sena_porcentaje': None, 'dias_saldo_antes_evento': None,
+        'ipc_activo': str(config.get('ipc_activo_por_defecto') or '0') in ('1', 'true'),
         'estado': 'BORRADOR', 'modificado_post_aprobacion': False,
     }
 
@@ -199,6 +202,7 @@ def obtener_precheck(current_user, evento_id):
         'config': {
             'sena_porcentaje': float(config.get('sena_porcentaje') or 50),
             'dias_saldo_antes_evento': int(float(config.get('dias_saldo_antes_evento') or 7)),
+            'iva_porcentaje': float(config.get('iva_porcentaje') or 21),
             'tiene_condiciones': bool((config.get('condiciones') or '').strip()),
         },
         'permisos': permisos,
@@ -251,9 +255,55 @@ def actualizar_cabecera(current_user, evento_id):
             cambios.append(f"Propina: {float(pc.propina_porcentaje or 0):g}% → {float(pct):g}%")
             pc.propina_porcentaje = pct
 
+    # ---- Condiciones de pago e IPC de este evento: solo administración, con motivo
+    sensibles = []
+    motivo_cambio = (data.get('motivo_cambio') or '').strip()
+    if any(k in data for k in ('sena_porcentaje', 'dias_saldo_antes_evento', 'ipc_activo')):
+        if not _es_admin(current_user):
+            db.session.rollback()
+            return jsonify({'error': 'La seña, el vencimiento del saldo y el IPC los cambia administración'}), 403
+        config = leer_config()
+        try:
+            if 'sena_porcentaje' in data:
+                v = data['sena_porcentaje']
+                nuevo = None if v in (None, '') else _num(v, 'Seña', permitir_negativo=False)
+                if nuevo is not None and nuevo > 100:
+                    raise ValueError('La seña no puede superar el 100%')
+                actual = None if pc.sena_porcentaje is None else Decimal(str(pc.sena_porcentaje))
+                if actual != nuevo:
+                    general = f"general ({config.get('sena_porcentaje')}%)"
+                    antes = f'{float(actual):g}%' if actual is not None else general
+                    despues = f'{float(nuevo):g}%' if nuevo is not None else general
+                    sensibles.append(f'Seña: {antes} → {despues}')
+                    pc.sena_porcentaje = nuevo
+            if 'dias_saldo_antes_evento' in data:
+                v = data['dias_saldo_antes_evento']
+                nuevo = None if v in (None, '') else int(_num(v, 'Días', permitir_negativo=False))
+                if nuevo is not None and nuevo > 90:
+                    raise ValueError('Días del saldo: máximo 90')
+                if pc.dias_saldo_antes_evento != nuevo:
+                    general = f"general ({config.get('dias_saldo_antes_evento')} días)"
+                    antes = f'{pc.dias_saldo_antes_evento} días' if pc.dias_saldo_antes_evento is not None else general
+                    despues = f'{nuevo} días' if nuevo is not None else general
+                    sensibles.append(f'Vencimiento del saldo: {antes} → {despues} antes del evento')
+                    pc.dias_saldo_antes_evento = nuevo
+            if 'ipc_activo' in data:
+                nuevo = bool(data['ipc_activo'])
+                if bool(pc.ipc_activo) != nuevo:
+                    sensibles.append('Activó el ajuste por IPC' if nuevo else 'Desactivó el ajuste por IPC')
+                    pc.ipc_activo = nuevo
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+        if sensibles and len(motivo_cambio) < 3:
+            db.session.rollback()
+            return jsonify({'error': 'Indicá el motivo del cambio (queda en el historial)'}), 400
+
     if cambios:
         marcar_cambio(evento, current_user)
         registrar(evento, current_user, 'Datos del pre-check', '; '.join(cambios))
+    if sensibles:
+        registrar(evento, current_user, 'Condiciones de pago', '; '.join(sensibles) + f'. Motivo: {motivo_cambio}')
     db.session.commit()
     return jsonify(_respuesta_resumen(evento, {'precheck': pc.to_dict()})), 200
 
@@ -580,26 +630,73 @@ def simular_ipc(current_user, evento_id):
 @precheck_bp.route('/<int:evento_id>/ipc', methods=['POST'])
 @token_required
 def aplicar_ipc(current_user, evento_id):
+    """
+    Aplica el ajuste por IPC sobre el saldo. El porcentaje propuesto es el del INDEC;
+    administración puede usar otro (ej.: lo acordado con el cliente) dejando el motivo.
+    Body opcional: {porcentaje: 4.15, motivo: "..."}
+    """
+    from app.utils.ipc import primer_dia_mes
+
     evento = Evento.query.get_or_404(evento_id)
     if not _permisos(evento, current_user)['puede_aplicar_ipc']:
         return jsonify({'error': 'El ajuste por IPC lo aplica administración, con el pre-check abierto'}), 403
+    data = request.get_json(silent=True) or {}
     calculo = calcular_ipc_pendiente(evento, calcular_resumen(evento))
-    if not calculo.get('aplica') or not calculo.get('ajuste'):
+    if not calculo.get('activo') or calculo.get('monto_base') is None:
         return jsonify({'error': calculo.get('motivo') or 'No corresponde ajuste'}), 400
 
-    desde, hasta = calculo['periodo_base'], calculo['periodo_final']
+    indec = None
+    if calculo.get('aplica'):
+        # porcentaje exacto (sin redondear) para que el ajuste coincida con los índices
+        indec = ((Decimal(str(calculo['indice_final'])) / Decimal(str(calculo['indice_base'])) - 1) * 100).quantize(Decimal('0.0001'))
+    motivo = (data.get('motivo') or '').strip()
+    if data.get('porcentaje') not in (None, ''):
+        try:
+            pct = _num(data['porcentaje'], 'Porcentaje')
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        if pct < -50 or pct > 100:
+            return jsonify({'error': 'El porcentaje tiene que estar entre -50% y 100%'}), 400
+    elif indec is not None:
+        pct = indec
+    else:
+        return jsonify({'error': (calculo.get('motivo') or 'No hay IPC nuevo publicado')
+                        + ' Si corresponde igual, cargá el porcentaje a mano con el motivo.'}), 400
+    manual = indec is None or pct.quantize(Decimal('0.01')) != indec.quantize(Decimal('0.01'))
+    if manual and len(motivo) < 3:
+        return jsonify({'error': 'Cambiaste el porcentaje del INDEC: indicá el motivo (queda en el historial)'}), 400
+
+    base = Decimal(str(calculo['monto_base']))
+    if manual:
+        ajuste = (base * pct / 100).quantize(Decimal('0.01'))
+    else:
+        pct = indec
+        ajuste = Decimal(str(calculo['ajuste']))
+    if ajuste == 0:
+        return jsonify({'error': 'El ajuste da $0'}), 400
+
+    desde = calculo['periodo_base']
+    hasta = calculo['periodo_final'] if calculo.get('aplica') else primer_dia_mes(date.today()).strftime('%Y-%m')
     obtener_o_crear_precheck(evento)
+    obs = f'Sobre saldo de {_pesos(base)}.'
+    if calculo.get('aplica') and calculo.get('indice_base') and calculo.get('indice_final'):
+        obs += f" IPC INDEC {desde}: {calculo['indice_base']:.2f}; {hasta}: {calculo['indice_final']:.2f}."
+    if manual:
+        obs += f' Porcentaje acordado: {float(pct):g}%.'
     linea = PrecheckConcepto(
         evento_id=evento_id, categoria=CATEGORIA_AJUSTE_IPC,
-        descripcion=f'Ajuste IPC {desde} a {hasta} ({calculo["variacion_pct"]:.2f}%)',
-        cantidad=Decimal('1'), precio_unitario=Decimal(str(calculo['ajuste'])),
-        precio_lista=Decimal(str(calculo['ajuste'])), modalidad='fijo',
+        descripcion=f'Ajuste IPC {desde} a {hasta} ({float(pct):.2f}%)',
+        cantidad=Decimal('1'), precio_unitario=ajuste, precio_lista=ajuste, modalidad='fijo',
         ajusta_ipc=False, es_ajuste_ipc=True, ipc_periodo_desde=desde, ipc_periodo_hasta=hasta,
-        observaciones=(f"Sobre saldo de {_pesos(calculo['monto_base'])}. IPC INDEC {desde}: "
-                       f"{calculo['indice_base']:.2f}; {hasta}: {calculo['indice_final']:.2f}"),
+        ipc_porcentaje_indec=indec, ipc_porcentaje_aplicado=pct, ipc_motivo=motivo or None,
+        ipc_aplicado_por_id=current_user.id, observaciones=obs,
     )
     db.session.add(linea)
-    registrar(evento, current_user, 'Aplicó ajuste IPC', f"{linea.descripcion}: {_pesos(calculo['ajuste'])}")
+    detalle = f'{linea.descripcion}: {_pesos(ajuste)}'
+    if manual:
+        detalle += (f'. INDEC daba {float(indec):g}%' if indec is not None else '. Sin IPC nuevo del INDEC')
+        detalle += f'. Motivo: {motivo}'
+    registrar(evento, current_user, 'Aplicó ajuste IPC', detalle)
     db.session.commit()
     return jsonify(_respuesta_resumen(evento, {'message': 'Ajuste aplicado', 'concepto': linea.to_dict()})), 201
 

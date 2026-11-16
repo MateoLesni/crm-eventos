@@ -127,7 +127,7 @@ def generar_pdf_precheck(evento, precheck, conceptos, adicionales, pagos, resume
         ['Cliente', cliente, 'Fecha', fecha_larga(evento.fecha_evento)],
         ['Razón social', (precheck.razon_social if precheck and precheck.razon_social else '-'), 'Horario', horario],
         ['Motivo', (precheck.motivo if precheck and precheck.motivo else '-'), 'Personas', str(evento.cantidad_personas or '-')],
-        ['Espacio', espacio, 'Facturación', 'Con factura (IVA 21%)' if evento.facturada else 'Sin factura'],
+        ['Espacio', espacio, 'Facturación', (f"Con factura (IVA {cantidad(resumen.get('iva_porcentaje', 21))}%)" if evento.facturada else 'Sin factura')],
     ]
     datos = [[Paragraph(f'<font color="#5b625d">{a}</font>', e['celda']), Paragraph(escape(str(b)), e['celda']),
               Paragraph(f'<font color="#5b625d">{c}</font>', e['celda']), Paragraph(escape(str(d)), e['celda'])]
@@ -168,7 +168,7 @@ def generar_pdf_precheck(evento, precheck, conceptos, adicionales, pagos, resume
     # ---- Totales
     filas = [['Subtotal', pesos(resumen['subtotal'])]]
     if resumen.get('iva'):
-        filas.append(['IVA 21%', pesos(resumen['iva'])])
+        filas.append([f"IVA {cantidad(resumen.get('iva_porcentaje', 21))}%", pesos(resumen['iva'])])
     if resumen.get('propina'):
         filas.append([f"Propina ({cantidad(resumen['propina_porcentaje'])}%)", pesos(resumen['propina'])])
     filas.append(['TOTAL', pesos(resumen['total'])])

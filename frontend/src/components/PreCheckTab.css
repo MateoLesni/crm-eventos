@@ -1114,3 +1114,88 @@
     margin-left: 0;
   }
 }
+
+/* Condiciones de pago del evento */
+.pc-condiciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px 14px;
+  padding: 10px 14px;
+  margin: -6px 0 14px;
+  border: 1px dashed var(--linea-fuerte, #b9bcb0);
+  border-radius: 10px;
+}
+
+.pc-cond-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.pc-cond-item > span:first-child {
+  font-size: 11px;
+  color: var(--tinta-suave, #5c6359);
+}
+
+.pc-cond-item small {
+  font-size: 11px;
+  color: var(--tinta-tenue, #8d9288);
+}
+
+.pc-cond-item .pc-pct input {
+  height: 30px;
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  width: 64px;
+  text-align: right;
+}
+
+.pc-switch-linea {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pc-ipc-form {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+}
+
+.pc-ipc-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--tinta-suave, #5c6359);
+}
+
+.pc-ipc-form input {
+  height: 32px;
+  border: 1px solid var(--linea-fuerte, #b9bcb0);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  background: var(--papel, #fff);
+}
+
+.pc-ipc-form .pc-pct input {
+  width: 90px;
+  text-align: right;
+}
+
+.pc-ipc-motivo input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pc-ipc-resultado {
+  font-size: 13px;
+}
+
+.pc-ipc-form .pc-btn {
+  justify-self: start;
+}

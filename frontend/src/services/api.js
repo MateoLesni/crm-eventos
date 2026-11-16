@@ -136,7 +136,7 @@ export const precheckApi = {
   cambiarEstado: (eventoId, accion, comentario) => api.post(`/precheck/${eventoId}/estado`, { accion, comentario }),
   // Ajuste por IPC
   simularIpc: (eventoId) => api.get(`/precheck/${eventoId}/ipc`),
-  aplicarIpc: (eventoId) => api.post(`/precheck/${eventoId}/ipc`),
+  aplicarIpc: (eventoId, data) => api.post(`/precheck/${eventoId}/ipc`, data || {}),
 };
 
 // Catálogo del pre-check: lista de precios, sectores y parámetros (escriben solo admin)

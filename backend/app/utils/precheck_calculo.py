@@ -16,7 +16,6 @@ Plan de pagos:
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
-IVA = Decimal('0.21')
 CENT = Decimal('0.01')
 
 
@@ -53,12 +52,29 @@ def proximo_dia_habil(fecha):
     return siguiente
 
 
-def factor_total(evento):
-    """Multiplicador que lleva de subtotal a total (IVA + propina)."""
+def factor_total(evento, config=None):
+    """Multiplicador que lleva de subtotal a total (IVA + propina). El IVA sale del catálogo (21% por defecto)."""
+    from app.models_precheck import leer_config
+    config = config if config is not None else leer_config()
     pc = getattr(evento, 'precheck', None)
     propina = _d(pc.propina_porcentaje) / 100 if pc else Decimal('0')
-    iva = IVA if evento.facturada else Decimal('0')
+    tasa_iva = _d(config.get('iva_porcentaje') or 21) / 100
+    iva = tasa_iva if evento.facturada else Decimal('0')
     return 1 + iva + propina, iva, propina
+
+
+def parametros_pago(evento, config):
+    """Seña y días del saldo: los del evento si se fijaron a mano, si no los generales."""
+    pc = getattr(evento, 'precheck', None)
+    if pc and pc.sena_porcentaje is not None:
+        sena = _d(pc.sena_porcentaje)
+    else:
+        sena = _d(config.get('sena_porcentaje') or 50)
+    if pc and pc.dias_saldo_antes_evento is not None:
+        dias = int(pc.dias_saldo_antes_evento)
+    else:
+        dias = int(_d(config.get('dias_saldo_antes_evento') or 7))
+    return sena, dias
 
 
 def calcular_resumen(evento, hoy=None):
@@ -68,10 +84,11 @@ def calcular_resumen(evento, hoy=None):
     adicionales = list(evento.precheck_adicionales)
     pagos = list(evento.precheck_pagos)
 
+    config = leer_config()
     total_conceptos = sum((c.subtotal for c in conceptos), Decimal('0'))
     total_adicionales = sum((_d(a.monto) for a in adicionales), Decimal('0'))
     subtotal = total_conceptos + total_adicionales
-    factor, tasa_iva, tasa_propina = factor_total(evento)
+    factor, tasa_iva, tasa_propina = factor_total(evento, config)
     iva = subtotal * tasa_iva
     propina = subtotal * tasa_propina
     total = subtotal + iva + propina
@@ -82,9 +99,8 @@ def calcular_resumen(evento, hoy=None):
     pendiente = total - total_pagado
 
     # ---- Plan de pagos
-    config = leer_config()
-    sena_pct = _d(config.get('sena_porcentaje') or 50) / 100
-    dias_saldo = int(_d(config.get('dias_saldo_antes_evento') or 7))
+    sena_porcentaje, dias_saldo = parametros_pago(evento, config)
+    sena_pct = sena_porcentaje / 100
     # El ajuste por IPC se cobra con el saldo: no cambia el monto de la seña
     total_ipc = sum((c.subtotal for c in conceptos if c.es_ajuste_ipc), Decimal('0'))
     contratado = (total_conceptos - total_ipc) * factor
@@ -134,6 +150,9 @@ def calcular_resumen(evento, hoy=None):
         'iva': _r(iva),
         'propina': _r(propina),
         'propina_porcentaje': _r(tasa_propina * 100),
+        'iva_porcentaje': _r(tasa_iva * 100) if evento.facturada else _r(_d(config.get('iva_porcentaje') or 21)),
+        'sena_porcentaje': _r(sena_porcentaje),
+        'dias_saldo_antes_evento': dias_saldo,
         'total': _r(total),
         'total_pagado': _r(total_pagado),
         'en_revision': _r(en_revision),
@@ -210,6 +229,10 @@ def calcular_ipc_pendiente(evento, resumen):
     """
     from app.utils.ipc import calcular_ajuste_ipc
 
+    pc = getattr(evento, 'precheck', None)
+    if not pc or not pc.ipc_activo:
+        return {'aplica': False, 'activo': False,
+                'motivo': 'El ajuste por IPC no está activado para este evento.'}
     if not resumen['fecha_sena']:
         return {'aplica': False, 'motivo': 'Todavía no hay una seña validada por tesorería.'}
 
@@ -231,6 +254,7 @@ def calcular_ipc_pendiente(evento, resumen):
     calculo = calcular_ajuste_ipc(base, fecha_base)
     calculo['base_descripcion'] = 'Saldo pendiente de lo contratado (sin IVA ni propina), sin seña ni adicionales'
     calculo['es_continuacion'] = bool(hasta_previos)
+    calculo['activo'] = True
     if base <= 0 and calculo.get('aplica'):
         calculo.update({'aplica': False, 'ajuste': 0.0, 'motivo': 'No queda saldo de lo contratado para ajustar.'})
     return calculo

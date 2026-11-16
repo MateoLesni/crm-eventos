@@ -55,6 +55,77 @@ const numero = (v) => (v === '' || v === '-' || v === null || v === undefined ? 
 
 // ==================== CABECERA ====================
 
+// Seña, vencimiento del saldo e IPC de este evento: los cambia administración y siempre con motivo
+function CondicionesPago({ data, puedeEditar, onGuardar }) {
+  const { precheck, config, resumen, permisos } = data;
+  const editable = puedeEditar && permisos.es_admin;
+  const [sena, setSena] = useState(precheck.sena_porcentaje ?? '');
+  const [dias, setDias] = useState(precheck.dias_saldo_antes_evento ?? '');
+
+  const pedirMotivo = (texto) => {
+    const m = window.prompt(`${texto}\n\n¿Por qué? (queda en el historial con tu nombre y la fecha)`);
+    return m && m.trim().length >= 3 ? m.trim() : null;
+  };
+
+  const guardar = (cambios, texto, revertir) => {
+    const motivo = pedirMotivo(texto);
+    if (!motivo) {
+      revertir();
+      return;
+    }
+    onGuardar({ ...cambios, motivo_cambio: motivo });
+  };
+
+  const senaActual = precheck.sena_porcentaje ?? '';
+  const diasActual = precheck.dias_saldo_antes_evento ?? '';
+
+  return (
+    <section className="pc-condiciones">
+      <div className="pc-cond-item">
+        <span>Seña</span>
+        {editable ? (
+          <span className="pc-pct">
+            <input value={sena} inputMode="decimal" placeholder={String(config.sena_porcentaje)}
+              onChange={(e) => setSena(e.target.value.replace(/[^\d.]/g, ''))}
+              onBlur={() => String(sena) !== String(senaActual) && guardar(
+                { sena_porcentaje: sena === '' ? null : Number(sena) },
+                sena === '' ? `Volver a la seña general (${config.sena_porcentaje}%)` : `Seña de este evento: ${sena}%`,
+                () => setSena(senaActual))} />%
+          </span>
+        ) : <strong>{resumen.sena_porcentaje}%</strong>}
+        <small>{precheck.sena_porcentaje === null || precheck.sena_porcentaje === undefined ? 'general' : 'propia de este evento'}</small>
+      </div>
+      <div className="pc-cond-item">
+        <span>Saldo vence</span>
+        {editable ? (
+          <span className="pc-pct">
+            <input value={dias} inputMode="numeric" placeholder={String(config.dias_saldo_antes_evento)}
+              onChange={(e) => setDias(e.target.value.replace(/\D/g, ''))}
+              onBlur={() => String(dias) !== String(diasActual) && guardar(
+                { dias_saldo_antes_evento: dias === '' ? null : Number(dias) },
+                dias === '' ? `Volver al vencimiento general (${config.dias_saldo_antes_evento} días antes)` : `Saldo de este evento: ${dias} días antes`,
+                () => setDias(diasActual))} /> días antes
+          </span>
+        ) : <strong>{resumen.dias_saldo_antes_evento} días antes</strong>}
+        <small>{precheck.dias_saldo_antes_evento === null || precheck.dias_saldo_antes_evento === undefined ? 'general' : 'propio de este evento'}</small>
+      </div>
+      <div className="pc-cond-item">
+        <span>Ajuste por IPC</span>
+        <label className="pc-switch-linea">
+          <span className="toggle-switch">
+            <input type="checkbox" checked={!!precheck.ipc_activo} disabled={!editable}
+              onChange={(e) => guardar({ ipc_activo: e.target.checked },
+                e.target.checked ? 'Activar el ajuste por IPC en este evento' : 'Desactivar el ajuste por IPC en este evento', () => {})} />
+            <span className="toggle-slider"></span>
+          </span>
+          <strong>{precheck.ipc_activo ? 'Activado' : 'Desactivado'}</strong>
+        </label>
+        <small>{editable ? 'Lo activa administración' : 'Lo maneja administración'}</small>
+      </div>
+    </section>
+  );
+}
+
 function DatosEvento({ data, puedeEditar, onGuardar, onToggleFacturada }) {
   const { evento, precheck, sectores } = data;
   const [motivo, setMotivo] = useState(precheck.motivo || '');
@@ -120,7 +191,7 @@ function DatosEvento({ data, puedeEditar, onGuardar, onToggleFacturada }) {
       </div>
       <div className="pc-dato">
         <span>Factura</span>
-        <label className="toggle-switch" title="Con factura suma IVA 21%">
+        <label className="toggle-switch" title={`Con factura suma IVA ${data.config.iva_porcentaje}%`}>
           <input type="checkbox" checked={!!data.facturada} onChange={onToggleFacturada} disabled={!puedeEditar} />
           <span className="toggle-slider"></span>
         </label>
@@ -420,15 +491,23 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
   const verIpc = async () => {
     try {
       const r = await precheckApi.simularIpc(eventoId);
-      setIpc(r.data);
+      setIpc({ ...r.data, pct: r.data.aplica ? String(r.data.variacion_pct) : '', motivo: '' });
     } catch (err) {
       alert(errorDe(err, 'No se pudo calcular el IPC'));
     }
   };
 
+  const ipcPct = ipc ? Number(ipc.pct) : NaN;
+  const ipcManual = ipc && (!ipc.aplica || Math.abs(ipcPct - ipc.variacion_pct) >= 0.005);
+  const ipcAjuste = ipc && !Number.isNaN(ipcPct) && ipc.monto_base
+    ? (ipcManual ? ipc.monto_base * ipcPct / 100 : ipc.ajuste) : 0;
+
   const aplicarIpc = async () => {
-    if (!window.confirm(`Se agrega una línea de ajuste por ${pesos(ipc.ajuste)} (+${ipc.variacion_pct}%). ¿Aplicar?`)) return;
-    const ok = await ejecutar(() => precheckApi.aplicarIpc(eventoId), 'No se pudo aplicar el ajuste');
+    if (ipc.pct === '' || Number.isNaN(ipcPct)) return alert('Poné el porcentaje a aplicar');
+    if (ipcManual && ipc.motivo.trim().length < 3) return alert('Cambiaste el porcentaje del INDEC: escribí el motivo');
+    if (!window.confirm(`Se agrega una línea de ajuste por ${pesos(ipcAjuste)} (${ipcPct}%). ¿Aplicar?`)) return;
+    const body = ipcManual ? { porcentaje: ipcPct, motivo: ipc.motivo.trim() } : {};
+    const ok = await ejecutar(() => precheckApi.aplicarIpc(eventoId, body), 'No se pudo aplicar el ajuste');
     if (ok) setIpc(null);
   };
 
@@ -571,6 +650,10 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
         key={`${precheck.motivo}|${precheck.razon_social}|${precheck.propina_porcentaje}`}
         data={data} puedeEditar={puede_editar} onGuardar={guardarCabecera} onToggleFacturada={toggleFacturada} />
 
+      <CondicionesPago
+        key={`${precheck.sena_porcentaje}|${precheck.dias_saldo_antes_evento}|${precheck.ipc_activo}`}
+        data={data} puedeEditar={puede_editar} onGuardar={guardarCabecera} />
+
       {/* Lo contratado */}
       <section className="precheck-section">
         <div className="section-header">
@@ -619,6 +702,9 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
                     <td>
                       <div className="pc-desc">{c.descripcion}</div>
                       {c.observaciones && <div className="pc-obs">{c.observaciones}</div>}
+                      {c.es_ajuste_ipc && c.ipc_motivo && (
+                        <span className="pc-marca" title={`INDEC: ${c.ipc_porcentaje_indec ?? 'sin dato nuevo'}%`}>% manual: {c.ipc_motivo}</span>
+                      )}
                       {c.fuera_de_lista && (
                         <span className="pc-marca" title="Lo aprueban Pilar o el Tano">
                           {c.precio_unitario < 0 ? 'Descuento' : c.precio_lista === null ? 'Cargado a mano' : `Fuera de lista (lista ${pesos(c.precio_lista)})`}
@@ -750,7 +836,7 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
       {/* Totales */}
       <section className="precheck-totales">
         <div className="totales-row"><span>Subtotal</span><span>{pesos(resumen.subtotal)}</span></div>
-        {data.facturada && <div className="totales-row iva"><span>IVA 21%</span><span>{pesos(resumen.iva)}</span></div>}
+        {data.facturada && <div className="totales-row iva"><span>IVA {resumen.iva_porcentaje}%</span><span>{pesos(resumen.iva)}</span></div>}
         {resumen.propina > 0 && <div className="totales-row iva"><span>Propina ({resumen.propina_porcentaje}%)</span><span>{pesos(resumen.propina)}</span></div>}
         <div className="totales-row total"><span>TOTAL</span><span>{pesos(resumen.total)}</span></div>
         {precheck.estado === 'CERRADO' && precheck.monto_final !== null && (
@@ -797,22 +883,47 @@ export default function PreCheckTab({ eventoId, onPrecheckChange }) {
             <div className="pc-ipc">
               <button className="pc-ipc-cerrar" onClick={() => setIpc(null)} aria-label="Cerrar">&times;</button>
               <h5>Ajuste por IPC (INDEC)</h5>
-              {ipc.aplica ? (
+              {!ipc.activo ? (
+                <p>{ipc.motivo} {permisos.es_admin ? 'Se activa arriba, en "Ajuste por IPC".' : 'Lo activa administración.'}</p>
+              ) : ipc.monto_base === undefined || ipc.monto_base === null ? (
+                <p>{ipc.motivo}</p>
+              ) : (
                 <>
                   <p>
-                    {ipc.es_continuacion ? 'Desde el último ajuste' : 'Desde la seña'} ({ipc.periodo_base}) hasta el último IPC publicado ({ipc.periodo_final}):{' '}
-                    <strong>+{ipc.variacion_pct.toLocaleString('es-AR')}%</strong>
+                    {ipc.aplica ? (
+                      <>
+                        {ipc.es_continuacion ? 'Desde el último ajuste' : 'Desde la seña'} ({ipc.periodo_base}) hasta el último IPC publicado ({ipc.periodo_final}):{' '}
+                        <strong>{ipc.variacion_pct.toLocaleString('es-AR')}%</strong> según INDEC.
+                      </>
+                    ) : <>{ipc.motivo} Si corresponde igual, cargá el porcentaje a mano.</>}
                   </p>
-                  <p>Sobre el saldo pendiente de lo contratado ({pesos(ipc.monto_base)}, sin IVA ni propina, sin la seña ni adicionales):{' '}
-                    <strong>{pesos(ipc.ajuste)}</strong> más IVA/propina si corresponden.</p>
+                  <p>Base: saldo pendiente de lo contratado, {pesos(ipc.monto_base)} (sin IVA ni propina, sin la seña ni adicionales).</p>
                   {permisos.puede_aplicar_ipc ? (
-                    <button className="pc-btn primario" onClick={aplicarIpc} disabled={guardando}>Aplicar ajuste</button>
+                    <div className="pc-ipc-form">
+                      <label>
+                        Porcentaje a aplicar
+                        <span className="pc-pct">
+                          <input value={ipc.pct} inputMode="decimal"
+                            onChange={(e) => setIpc({ ...ipc, pct: e.target.value.replace(/[^\d.-]/g, '') })} />%
+                        </span>
+                      </label>
+                      {ipcManual && (
+                        <label className="pc-ipc-motivo">
+                          Motivo del cambio (queda en el historial)
+                          <input value={ipc.motivo} placeholder="Ej.: acordado con el cliente al firmar"
+                            onChange={(e) => setIpc({ ...ipc, motivo: e.target.value })} />
+                        </label>
+                      )}
+                      <div className="pc-ipc-resultado">
+                        Ajuste: <strong>{pesos(ipcAjuste)}</strong> más IVA/propina si corresponden
+                        {ipcManual && ipc.aplica && <span className="pc-aviso-lista"> · distinto del INDEC ({ipc.variacion_pct}%)</span>}
+                      </div>
+                      <button className="pc-btn primario" onClick={aplicarIpc} disabled={guardando}>Aplicar ajuste</button>
+                    </div>
                   ) : (
                     <p className="pc-nota">El ajuste lo aplica administración.</p>
                   )}
                 </>
-              ) : (
-                <p>{ipc.motivo}</p>
               )}
             </div>
           )}

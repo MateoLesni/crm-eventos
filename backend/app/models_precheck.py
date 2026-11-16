@@ -73,6 +73,10 @@ class PrecheckConcepto(db.Model):
     es_ajuste_ipc = db.Column(db.Boolean, nullable=False, default=False)
     ipc_periodo_desde = db.Column(db.String(7), nullable=True)     # AAAA-MM (solo líneas de ajuste)
     ipc_periodo_hasta = db.Column(db.String(7), nullable=True)
+    ipc_porcentaje_indec = db.Column(db.Numeric(8, 4), nullable=True)     # lo que daba el INDEC
+    ipc_porcentaje_aplicado = db.Column(db.Numeric(8, 4), nullable=True)  # lo que se aplicó
+    ipc_motivo = db.Column(db.Text, nullable=True)                         # por qué se cambió el %
+    ipc_aplicado_por_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
     created_at = db.Column(db.DateTime, default=ahora_argentina)
     updated_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
 
@@ -117,6 +121,9 @@ class PrecheckConcepto(db.Model):
             'es_ajuste_ipc': bool(self.es_ajuste_ipc),
             'ipc_periodo_desde': self.ipc_periodo_desde,
             'ipc_periodo_hasta': self.ipc_periodo_hasta,
+            'ipc_porcentaje_indec': float(self.ipc_porcentaje_indec) if self.ipc_porcentaje_indec is not None else None,
+            'ipc_porcentaje_aplicado': float(self.ipc_porcentaje_aplicado) if self.ipc_porcentaje_aplicado is not None else None,
+            'ipc_motivo': self.ipc_motivo,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -309,6 +316,8 @@ class PrecheckConfig(db.Model):
 CONFIG_DEFAULTS = {
     'sena_porcentaje': '50',
     'dias_saldo_antes_evento': '7',
+    'iva_porcentaje': '21',
+    'ipc_activo_por_defecto': '0',   # el ajuste por IPC se activa a mano en cada evento
     'condiciones': '',
 }
 
@@ -330,6 +339,9 @@ class Precheck(db.Model):
     motivo = db.Column(db.String(200), nullable=True)
     razon_social = db.Column(db.String(200), nullable=True)   # empresa/agencia que factura, si aplica
     propina_porcentaje = db.Column(db.Numeric(5, 2), nullable=False, default=0)
+    sena_porcentaje = db.Column(db.Numeric(5, 2), nullable=True)          # NULL = el general del catálogo
+    dias_saldo_antes_evento = db.Column(db.Integer, nullable=True)        # NULL = el general del catálogo
+    ipc_activo = db.Column(db.Boolean, nullable=False, default=False)
     estado = db.Column(db.String(20), nullable=False, default='BORRADOR')
     modificado_post_aprobacion = db.Column(db.Boolean, nullable=False, default=False)
     enviado_revision_at = db.Column(db.DateTime, nullable=True)
@@ -358,6 +370,9 @@ class Precheck(db.Model):
             'motivo': self.motivo,
             'razon_social': self.razon_social,
             'propina_porcentaje': float(self.propina_porcentaje or 0),
+            'sena_porcentaje': float(self.sena_porcentaje) if self.sena_porcentaje is not None else None,
+            'dias_saldo_antes_evento': self.dias_saldo_antes_evento,
+            'ipc_activo': bool(self.ipc_activo),
             'estado': self.estado,
             'modificado_post_aprobacion': bool(self.modificado_post_aprobacion),
             'enviado_revision_at': fecha(self.enviado_revision_at),
@@ -376,7 +391,8 @@ class PrecheckHistorial(db.Model):
     __tablename__ = 'precheck_historial'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    evento_id = db.Column(db.Integer, db.ForeignKey('eventos.id', ondelete='CASCADE'), nullable=False, index=True)
+    # NULL = cambio en la configuración general del catálogo
+    evento_id = db.Column(db.Integer, db.ForeignKey('eventos.id', ondelete='CASCADE'), nullable=True, index=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True)
     accion = db.Column(db.String(60), nullable=False)
     detalle = db.Column(db.Text, nullable=True)

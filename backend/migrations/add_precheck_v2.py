@@ -70,6 +70,9 @@ def migrar(conn):
             motivo VARCHAR(200) NULL,
             razon_social VARCHAR(200) NULL,
             propina_porcentaje DECIMAL(5, 2) NOT NULL DEFAULT 0,
+            sena_porcentaje DECIMAL(5, 2) NULL,
+            dias_saldo_antes_evento INT NULL,
+            ipc_activo TINYINT(1) NOT NULL DEFAULT 0,
             estado VARCHAR(20) NOT NULL DEFAULT 'BORRADOR',
             modificado_post_aprobacion TINYINT(1) NOT NULL DEFAULT 0,
             enviado_revision_at DATETIME NULL,
@@ -94,7 +97,7 @@ def migrar(conn):
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS precheck_historial (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            evento_id INT NOT NULL,
+            evento_id INT NULL,
             usuario_id INT NULL,
             accion VARCHAR(60) NOT NULL,
             detalle TEXT NULL,
@@ -116,6 +119,10 @@ def migrar(conn):
         'es_ajuste_ipc': 'TINYINT(1) NOT NULL DEFAULT 0',
         'ipc_periodo_desde': 'VARCHAR(7) NULL',
         'ipc_periodo_hasta': 'VARCHAR(7) NULL',
+        'ipc_porcentaje_indec': 'DECIMAL(8, 4) NULL',
+        'ipc_porcentaje_aplicado': 'DECIMAL(8, 4) NULL',
+        'ipc_motivo': 'TEXT NULL',
+        'ipc_aplicado_por_id': 'INT NULL',
     }
     for col, tipo in nuevas.items():
         if col not in cols:
