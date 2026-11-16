@@ -208,3 +208,22 @@ def calcular_resumen_precheck(evento):
         'cantidad_pagos': evento.precheck_pagos.count(),
         'tiene_items': evento.precheck_conceptos.count() > 0 or evento.precheck_adicionales.count() > 0
     }
+
+
+class IpcIndice(db.Model):
+    """
+    IPC Nivel General Nacional (INDEC, base dic 2016), un registro por mes.
+    Se trae de la API de series de datos.gob.ar y se guarda acá para no
+    depender de que esa API responda cada vez que se calcula un ajuste.
+    """
+    __tablename__ = 'ipc_indices'
+
+    periodo = db.Column(db.Date, primary_key=True)  # primer día del mes
+    valor = db.Column(db.Numeric(14, 4), nullable=False)
+    actualizado_at = db.Column(db.DateTime, default=ahora_argentina, onupdate=ahora_argentina)
+
+    def to_dict(self):
+        return {
+            'periodo': self.periodo.strftime('%Y-%m'),
+            'valor': float(self.valor),
+        }

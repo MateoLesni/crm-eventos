@@ -71,6 +71,14 @@ def create_app():
     from app.routes.export import export_bp
     app.register_blueprint(export_bp, url_prefix='/api/export')
 
+    # IPC del INDEC para el ajuste de saldos del pre-check
+    from app.routes.ipc import ipc_bp
+    app.register_blueprint(ipc_bp, url_prefix='/api/ipc')
+
+    # Comprobantes de pago para otras apps (Control de Cajas), con clave propia
+    from app.routes.comprobantes_externo import comprobantes_externo_bp
+    app.register_blueprint(comprobantes_externo_bp, url_prefix='/api/externo')
+
     # Importar modelos para que SQLAlchemy los conozca
     from app import models  # Modelos del CRM
     from app import models_whatsapp  # Modelos de WhatsApp
